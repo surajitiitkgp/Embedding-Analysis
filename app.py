@@ -1,6 +1,8 @@
+# ```python
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 import torch
+import torch.nn as nn
 import torchvision.models as models
 import torchvision.transforms as transforms
 from PIL import Image
@@ -9,7 +11,14 @@ import warnings
 import numpy as np
 import importlib.util
 import sys
+import logging
+from pathlib import Path
+from glob import glob
 from torchvision.models import VGG16_Weights, ResNet18_Weights, AlexNet_Weights
+from visualisation_app import NpyVisualizerApp
+
+# Setup logging
+logging.basicConfig(filename="app.log", level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Suppress warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -20,21 +29,20 @@ features = {}
 layer_shapes = {}
 input_image = None
 selected_model_name = ""
-mode = None  # Will be initialized in main_screen()
+mode = None
 model_file_path = None
+npz_file_path = None
 
-# Ask user whether to download pretrained weights for all models
 def ask_download_weights():
     while True:
-        ans = input("Do you want to download pretrained weights for all models (VGG16, ResNet18, and AlexNet)? (yes/no): ").strip().lower()
-        if ans in ['yes', 'y', 'Y']:
+        ans = input("Download pretrained weights for VGG16, ResNet18, AlexNet? (yes/no): ").strip().lower()
+        if ans in ['yes', 'y']:
             return True
-        elif ans in ['no', 'n', 'N']:
+        elif ans in ['no', 'n']:
             return False
         else:
             print("Please enter 'yes' or 'no'.")
 
-# Decide weights based on user input
 def get_model(model_name, download_weights):
     if model_name == "VGG16":
         return models.vgg16(weights=VGG16_Weights.DEFAULT if download_weights else None)
@@ -45,265 +53,286 @@ def get_model(model_name, download_weights):
     else:
         raise ValueError(f"Unknown model: {model_name}")
 
-# Ask user once if they want to download weights for all models
 download_weights = ask_download_weights()
-
-# Load models conditionally based on user input
 PRETRAINED_MODELS = {
     "VGG16": get_model("VGG16", download_weights),
     "ResNet18": get_model("ResNet18", download_weights),
     "AlexNet": get_model("AlexNet", download_weights)
 }
 
-
-import os
-from tkinter import messagebox, simpledialog
-from PIL import Image
-import torchvision.transforms as transforms
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
-
 def preprocess_image(image_path, transform_choice):
-    global mode
-    global width_var, height_var, channel_var
+    global mode, width_var, height_var, channel_var
+    image = Image.open(image_path)
+    target_size = (224, 224) if mode.get() == "Pretrained" else (int(height_var.get()), int(width_var.get()))
+    num_channels = 3
 
-    # Check if mode is 'Pretrained'
-    if mode.get() == "Pretrained":
-        if transform_choice == "Resize":
-            transform = transforms.Compose([
-                transforms.Resize(224, interpolation=Image.BILINEAR),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-            ])
-        elif transform_choice == "Crop":
-            # Check if the image dimensions are large enough
-            image = Image.open(image_path)
-            if image.size[0] >= 224 and image.size[1] >= 224:
-                # No need to resize, just apply center crop
+    try:
+        if mode.get() == "Pretrained":
+            if transform_choice == "Resize":
                 transform = transforms.Compose([
-                    transforms.CenterCrop(224),
+                    transforms.Resize(target_size, interpolation=transforms.InterpolationMode.BILINEAR),
                     transforms.ToTensor(),
                     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
                 ])
-            else:
-                # Resize first if the image is too small, then apply center crop
+            elif transform_choice == "Crop":
                 transform = transforms.Compose([
-                    transforms.Resize(224, interpolation=Image.BILINEAR),
-                    transforms.CenterCrop(224),
+                    transforms.Resize(max(target_size), interpolation=transforms.InterpolationMode.BILINEAR),
+                    transforms.CenterCrop(target_size),
                     transforms.ToTensor(),
                     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
                 ])
-        elif transform_choice == "None":
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-            ])
-        
-        image = Image.open(image_path).convert("RGB")
-    
-    else:  # For other modes
-        input_width = int(width_var.get())  # Get width input value
-        input_height = int(height_var.get())  # Get height input value
-        
-        image = Image.open(image_path)
-        
-        if channel_var.get():  # RGB mode
+            elif transform_choice == "None":
+                transform = transforms.Compose([
+                    transforms.Resize(target_size, interpolation=transforms.InterpolationMode.BILINEAR),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                ])
             image = image.convert("RGB")
-            num_channels = 3
-        else:  # Grayscale mode
-            image = image.convert("L")
-            num_channels = 1
+        else:
+            if channel_var.get():
+                image = image.convert("RGB")
+                num_channels = 3
+            else:
+                image = image.convert("L")
+                num_channels = 1
+            if transform_choice == "Resize":
+                transform = transforms.Compose([
+                    transforms.Resize(target_size, interpolation=transforms.InterpolationMode.BILINEAR),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.5] * num_channels, std=[0.5] * num_channels)
+                ])
+            elif transform_choice == "Crop":
+                transform = transforms.Compose([
+                    transforms.Resize(max(target_size), interpolation=transforms.InterpolationMode.BILINEAR),
+                    transforms.CenterCrop(target_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.5] * num_channels, std=[0.5] * num_channels)
+                ])
+            elif transform_choice == "None":
+                transform = transforms.Compose([
+                    transforms.Resize(target_size, interpolation=transforms.InterpolationMode.BILINEAR),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.5] * num_channels, std=[0.5] * num_channels)
+                ])
+        return transform(image).unsqueeze(0)
+    except Exception as e:
+        logging.error(f"Failed to preprocess image {image_path}: {str(e)}")
+        raise ValueError(f"Failed to preprocess image {image_path}: {str(e)}")
 
-        # Select the transformation based on user input
-        if transform_choice == "Resize":
-            transform = transforms.Compose([
-                transforms.Resize((input_height, input_width)),
-                transforms.ToTensor(),
-                # pixel values are in the range [0, 1] after ToTensor,
-                # input is transformed from [0, 1] → [-1, 1], centered around 0
-                transforms.Normalize(mean=[0.5] * num_channels, std=[0.5] * num_channels)
-            ])
-            
-        elif transform_choice == "Crop":
-            transform = transforms.Compose([
-                transforms.CenterCrop((input_height, input_width)),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.5] * num_channels, std=[0.5] * num_channels)
-            ])
-            
-        elif transform_choice == "None":
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.5] * num_channels, std=[0.5] * num_channels)
-            ])
-
-    return transform(image).unsqueeze(0)
-
-
-# Extract features
 def extract_features(layer_name, arch_window=None):
     global selected_model, features
-    
     if arch_window is not None:
-        arch_window.destroy()  # Close the architecture window
-
+        arch_window.destroy()
     if selected_model is None:
         messagebox.showerror("Error", "Please load/select a model first!")
         return
 
-    # New window with button to select folder
     folder_prompt_window = tk.Toplevel(root)
     folder_prompt_window.title("Image Folder Selection")
-    folder_prompt_window.geometry("400x200")  # Set width x height
-
-    # Optional: add some padding and centering
+    folder_prompt_window.geometry("400x200")
     frame = ttk.Frame(folder_prompt_window, padding=20)
     frame.pack(expand=True, fill="both")
-
     ttk.Label(frame, text=f"Layer: {layer_name}", font=("Arial", 10)).pack(pady=20)
     ttk.Button(frame, text="Step 3: Select Image Folder",
-            command=lambda: handle_folder_selection(folder_prompt_window, layer_name)).pack(pady=10)
-
-
+               command=lambda: handle_folder_selection(folder_prompt_window, layer_name)).pack(pady=10)
 
 def handle_folder_selection(window, layer_name):
-    global selected_model, selected_model_name
-
+    global selected_model, selected_model_name, npz_file_path
     folder_path = filedialog.askdirectory(title="Select Folder of Images")
     if not folder_path:
         messagebox.showwarning("Warning", "No image folder selected.")
         return
-    
-    # Ask the user for the transformation they want, just once
+
     transform_choice = simpledialog.askstring(
         "Select Transformation",
         "Choose one: Resize, Crop, None",
-        parent=root  # Assuming 'root' is the Tkinter root window
+        parent=root
     )
-
-    # Validate the user input for transformation choice
     if transform_choice not in ["Resize", "Crop", "None"]:
         messagebox.showerror("Invalid Choice", "Please choose either 'Resize', 'Crop', or 'None'.")
         return
 
-    # Close the prompt window
     window.destroy()
 
-    # Hook for the layer
-    # runs during the forward pass of a model layer
+    # Count total images for progress bar
+    image_files = []
+    for root_dir, _, files in os.walk(folder_path):
+        for filename in files:
+            if filename.lower().endswith((".jpg", ".jpeg", ".png")):
+                image_files.append(os.path.join(root_dir, filename))
+    total_images = len(image_files)
+    if total_images == 0:
+        messagebox.showerror("Error", "No valid image files found in the selected folder.")
+        return
+
+    # Create loading screen
+    loading_window = tk.Toplevel(root)
+    loading_window.title("Processing Images")
+    loading_window.geometry("400x150")
+    loading_window.transient(root)
+    loading_window.grab_set()
+    frame = ttk.Frame(loading_window, padding=20)
+    frame.pack(expand=True, fill="both")
+    progress_label = ttk.Label(frame, text=f"Processing: 0/{total_images} images")
+    progress_label.pack(pady=5)
+    file_label = ttk.Label(frame, text="Current file: None")
+    file_label.pack(pady=5)
+    progress_bar = ttk.Progressbar(frame, mode="determinate", maximum=total_images, value=0)
+    progress_bar.pack(pady=10, fill="x")
+    root.update()
+
     def hook_fn(module, input, output):
-        hook_fn.output = output.detach().numpy() # saves output to a static variable hook_fn.output.
+        if output.dim() == 4:
+            output = nn.AdaptiveAvgPool2d((1, 1))(output)
+            output = output.squeeze(-1).squeeze(-1)
+        hook_fn.output = output.detach().numpy()
 
     hook_fn.output = None
     for name, module in selected_model.named_modules():
         if name == layer_name:
-            handle = module.register_forward_hook(hook_fn) #attaches the hook_fn to the target layer.
+            handle = module.register_forward_hook(hook_fn)
             break
     else:
+        loading_window.destroy()
         messagebox.showerror("Error", f"Layer {layer_name} not found!")
         return
 
-    # Process all images
     failed = []
     success_count = 0
     saved_file_paths = []
-    
-    for filename in os.listdir(folder_path):
-        if filename.lower().endswith((".jpg", ".jpeg", ".png")):
-            file_path = os.path.join(folder_path, filename)
-            try:
-                image_tensor = preprocess_image(file_path, transform_choice)
-                with torch.no_grad():
-                    selected_model(image_tensor)
-                if hook_fn.output is not None:
-                    out_folder = os.path.join("features", selected_model_name, f"{layer_name} ({transform_choice})")
-                    os.makedirs(out_folder, exist_ok=True)
-                    save_path = os.path.join(out_folder, os.path.splitext(filename)[0] + ".npy")
-                    np.save(save_path, hook_fn.output)
+    feature_list = []
+    label_list = []
+    current_image = 0
 
-                    # Store relative path instead of full path
-                    relative_path = os.path.relpath(save_path, start="features")
-                    saved_file_paths.append(relative_path)
+    for image_path in image_files:
+        current_image += 1
+        filename = os.path.basename(image_path)
+        try:
+            # Update loading screen
+            progress_label.config(text=f"Processing: {current_image}/{total_images} images")
+            file_label.config(text=f"Current file: {filename}")
+            progress_bar["value"] = current_image
+            root.update()
 
-                    success_count += 1
-            except Exception as e:
-                failed.append(filename)
+            image_tensor = preprocess_image(image_path, transform_choice)
+            with torch.no_grad():
+                selected_model(image_tensor)
+            if hook_fn.output is not None:
+                root_dir = os.path.dirname(image_path)
+                relative_path = os.path.relpath(root_dir, folder_path)
+                out_folder = Path("features") / selected_model_name / f"{layer_name} ({transform_choice})" / relative_path
+                out_folder.mkdir(parents=True, exist_ok=True)
+                save_path = out_folder / (os.path.splitext(filename)[0] + ".npy")
+                np.save(save_path, hook_fn.output)
+                saved_file_paths.append(str(Path(save_path).relative_to("features")))
+                success_count += 1
+
+                features = hook_fn.output.flatten()
+                feature_list.append(features)
+
+                label = os.path.basename(root_dir)
+                label_list.append(label)
+        except Exception as e:
+            failed.append(f"{image_path}: {str(e)}")
 
     handle.remove()
+    loading_window.destroy()
+
+    if feature_list:
+        try:
+            features_array = np.vstack(feature_list)
+            labels_array = np.array(label_list)
+            npz_save_path = Path("features") / selected_model_name / f"{layer_name} ({transform_choice})" / f"{selected_model_name}_{layer_name}_{transform_choice}_all_classes.npz"
+            npz_save_path.parent.mkdir(parents=True, exist_ok=True)
+            np.savez(npz_save_path, features=features_array, labels=labels_array)
+            npz_file_path = str(npz_save_path.resolve())
+            saved_file_paths.append(str(npz_save_path.relative_to("features")))
+            logging.debug(f"NPZ file saved at: {npz_file_path}")
+            print(f"NPZ file saved at: {npz_file_path}")  # Debug
+            # Persist npz_file_path
+            with open("last_npz_path.txt", "w") as f:
+                f.write(npz_file_path)
+            logging.debug(f"Saved npz_file_path to last_npz_path.txt: {npz_file_path}")
+        except ValueError as e:
+            logging.error(f"Failed to save .npz file: {e}")
+            messagebox.showerror("Error", f"Failed to save .npz file: {e}")
+            return
 
     saved_files = "\n".join(saved_file_paths)
-
     msg = (
         f"Model: {selected_model_name}\n"
         f"Layer: {layer_name}\n"
         f"Successfully extracted features for {success_count} images.\n"
     )
     if failed:
-        msg += f"Failed for {len(failed)} images.\n"
-
-    msg += f"\nSaved .npy files:\n{saved_files}"
-
+        msg += f"Failed for {len(failed)} images:\n{', '.join(str(f) for f in failed)}\n"
+    msg += f"\nSaved files:\n{saved_files}"
     messagebox.showinfo("Done", msg)
 
-# Compute layer shapes
 def compute_layer_shapes():
-    global selected_model, layer_shapes, mode
-    global width_var, height_var, channel_var
-    
+    global selected_model, layer_shapes, mode, width_var, height_var, channel_var
     if selected_model is None:
         return
-
     layer_shapes.clear()
-
     if mode.get() == "Pretrained":
         dummy_input = torch.randn(1, 3, 224, 224)
     else:
-        # Decide number of channels based on the checkbox (True = RGB = 3, False = Grayscale = 1)
         channels = 3 if channel_var.get() else 1
-        
-        input_width = int(width_var.get())
-        input_height = int(height_var.get())
+        try:
+            input_width = int(width_var.get())
+            input_height = int(height_var.get())
+        except ValueError:
+            messagebox.showerror("Error", "Please enter valid width and height values.")
+            return
         dummy_input = torch.randn(1, channels, input_height, input_width)
     hooks = []
 
     def hook_fn(name):
         def hook(module, input, output):
-            layer_shapes[name] = list(output.shape)
+            out = output
+            if out.dim() == 4:
+                out = nn.AdaptiveAvgPool2d((1, 1))(out).squeeze(-1).squeeze(-1)
+            layer_shapes[name] = list(out.shape)
         return hook
 
     for name, module in selected_model.named_modules():
         hooks.append(module.register_forward_hook(hook_fn(name)))
 
     with torch.no_grad():
-        selected_model(dummy_input)
+        try:
+            selected_model(dummy_input)
+        except Exception as e:
+            logging.error(f"Failed to compute layer shapes: {e}")
+            messagebox.showerror("Error", f"Failed to compute layer shapes: {e}")
 
     for hook in hooks:
         hook.remove()
 
-# Show model architecture
 def show_model_architecture():
     global selected_model
     if not selected_model:
         messagebox.showerror("Error", "Please load/select a model first!")
         return
-
     compute_layer_shapes()
-
+    if not layer_shapes:
+        messagebox.showerror("Error", "No layers found in the model!")
+        return
     arch_window = tk.Toplevel(root)
     arch_window.title("Model Architecture")
-    ttk.Label(arch_window, text="Layer Naming Convention: [Batch, Channels, Height, Width]", font=("Arial", 10)).pack()
-
+    ttk.Label(arch_window, text="Layer Naming Convention: [Batch, Features]", font=("Arial", 10)).pack(pady=5)
     for name, shape in layer_shapes.items():
         shape_text = f"{name} - [{', '.join(map(str, shape))}]"
         ttk.Button(arch_window, text=shape_text,
-                   command=lambda n=name, w=arch_window: extract_features(n, w)).pack()
+                   command=lambda n=name, w=arch_window: extract_features(n, w)).pack(pady=2)
 
-# Load pretrained model
 def select_pretrained_model(name):
-    global selected_model, selected_model_name
+    global selected_model, selected_model_name, npz_file_path
     selected_model = PRETRAINED_MODELS[name]
     selected_model.eval()
     selected_model_name = name
+    npz_file_path = None  # Reset npz_file_path on model change
+    logging.debug(f"Model changed to {name}, npz_file_path reset to: {npz_file_path}")
+    print(f"Model changed to {name}, npz_file_path reset to: {npz_file_path}")  # Debug
     compute_layer_shapes()
     messagebox.showinfo("Model Selected", f"Loaded pretrained model: {name}")
 
@@ -311,73 +340,45 @@ def show_model_file_contents(file_path):
     try:
         with open(file_path, "r") as file:
             lines = file.readlines()
-
-        # Find where class definitions begin, class CustomCNN
         class_start_index = next((i for i, line in enumerate(lines) if line.strip().startswith("class ")), None)
-
         if class_start_index is None:
             messagebox.showerror("Error", "No class definition found in the model file.")
             return
-
-        class_content = "".join(lines[class_start_index:]) #Joins all lines from the class definition to the end of the file
-
-        # Create a new window to display the content
-        viewer = tk.Toplevel() #new pop-up
+        class_content = "".join(lines[class_start_index:])
+        viewer = tk.Toplevel()
         viewer.title(f"Viewing Class: {os.path.basename(file_path)}")
-
-        # Text widget with scrollbars
         text_area = tk.Text(viewer, wrap="none")
         text_area.insert("1.0", class_content)
-        text_area.config(state="disabled") #disable editing
+        text_area.config(state="disabled")
         text_area.pack(expand=True, fill="both")
-
-        # Add Scrollbars
         y_scroll = tk.Scrollbar(viewer, orient="vertical", command=text_area.yview)
         y_scroll.pack(side="right", fill="y")
         text_area.config(yscrollcommand=y_scroll.set)
-
         x_scroll = tk.Scrollbar(viewer, orient="horizontal", command=text_area.xview)
         x_scroll.pack(side="bottom", fill="x")
         text_area.config(xscrollcommand=x_scroll.set)
-
     except Exception as e:
+        logging.error(f"Could not read model file: {e}")
         messagebox.showerror("Error", f"Could not read model file:\n{str(e)}")
 
-import tkinter.simpledialog
-
-import tkinter as tk
-from tkinter import ttk, messagebox
-
-def choose_model_class(class_names): #from list of classes in model definition, choose one
+def choose_model_class(class_names):
     chooser = tk.Toplevel()
     chooser.title("Choose Model Class")
-    chooser.geometry("300x250")  # Set window size
-
-    # Styling for the window
+    chooser.geometry("300x250")
     chooser.configure(bg="white")
-
-    # Add label with a cleaner font and padding
     label = tk.Label(chooser, text="Select a model class:", font=("Arial", 11), bg="white")
     label.pack(pady=10)
-
-    # Create a scrollable list of class names
     listbox_frame = ttk.Frame(chooser)
     listbox_frame.pack(padx=10, pady=5, fill="both", expand=True)
-
-    # Listbox with scroll bar
     listbox = tk.Listbox(listbox_frame, selectmode=tk.SINGLE, font=("Arial", 10), height=6)
     listbox.pack(side="left", fill="both", expand=True)
-
     scrollbar = ttk.Scrollbar(listbox_frame, orient="vertical", command=listbox.yview)
     scrollbar.pack(side="right", fill="y")
     listbox.config(yscrollcommand=scrollbar.set)
-
     for name in class_names:
         listbox.insert(tk.END, name)
-
     selected = tk.StringVar()
 
-    # Confirm selection button
     def confirm_selection():
         try:
             selected.set(listbox.get(listbox.curselection()))
@@ -385,203 +386,172 @@ def choose_model_class(class_names): #from list of classes in model definition, 
         except:
             messagebox.showwarning("Warning", "Please select a class.")
 
-    # Use a button with a more refined appearance
     confirm_btn = ttk.Button(chooser, text="Confirm", command=confirm_selection, width=15)
     confirm_btn.pack(pady=10)
-
-    # Optional: Add a close button in case the user wants to cancel
     close_btn = ttk.Button(chooser, text="Cancel", command=chooser.destroy, width=15)
     close_btn.pack(pady=5)
-
-    # Keep the window on top and modal
-    chooser.transient()  # keep on top
-    chooser.grab_set()   # block interaction with other windows
-    chooser.wait_window()  # wait until the window is closed
-
+    chooser.transient()
+    chooser.grab_set()
+    chooser.wait_window()
     return selected.get() if selected.get() else None
 
-
-# Load model from .py
 def select_model_file():
-    global selected_model, selected_model_name, model_file_path
-
-    file_path = filedialog.askopenfilename(filetypes=[("Python Files", "*.py")]) #Allows the user to select a custom .py file that contains a model definition.
+    global selected_model, selected_model_name, model_file_path, npz_file_path
+    file_path = filedialog.askopenfilename(filetypes=[("Python Files", "*.py")])
     if not file_path:
         messagebox.showwarning("Warning", "No model file selected.")
         return
-
     try:
-        module_name = os.path.splitext(os.path.basename(file_path))[0] #before .py name of model, Gets the file name
-        spec = importlib.util.spec_from_file_location(module_name, file_path) # (blueprint) for how to load the file.
-        model_module = importlib.util.module_from_spec(spec) #actual Python module object.
+        module_name = os.path.splitext(os.path.basename(file_path))[0]
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        model_module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = model_module
-        spec.loader.exec_module(model_module) # loads the Python file and executes the code
-
-        model_classes = [attr for attr in dir(model_module) if isinstance(getattr(model_module, attr), type)] # lists all items (functions, classes, variables) inside the loaded module.
-        #Keeps only the class names (ignores functions, variables, etc.).
-        
-        if not model_classes: # filters for only class names 
+        spec.loader.exec_module(model_module)
+        model_classes = [attr for attr in dir(model_module) if isinstance(getattr(model_module, attr), type)]
+        if not model_classes:
             messagebox.showerror("Error", "No model class found in the selected file.")
             return
-
-        chosen_class_name = choose_model_class(model_classes) #ask the user to pick one of the classes found as the main model.
+        chosen_class_name = choose_model_class(model_classes)
         if not chosen_class_name:
             messagebox.showinfo("Info", "No class selected.")
             return
-
-        model_class = getattr(model_module, chosen_class_name) #Retrieves the chosen class using getattr().
-        selected_model = model_class() # creates an instance of it and 
-        selected_model_name = model_class.__name__ #stores the object and class name.
-
+        model_class = getattr(model_module, chosen_class_name)
+        selected_model = model_class()
+        selected_model_name = model_class.__name__
+        npz_file_path = None  # Reset npz_file_path on model change
+        logging.debug(f"Model file selected, npz_file_path reset to: {npz_file_path}")
+        print(f"Model file selected, npz_file_path reset to: {npz_file_path}")  # Debug
         messagebox.showinfo("Architecture Loaded", f"{selected_model_name} architecture loaded. Now load weights.")
-
-        
-        # show_model_file_contents(file_path)
-        model_file_path = file_path 
-
+        model_file_path = file_path
     except Exception as e:
+        logging.error(f"Failed to import model: {e}")
         messagebox.showerror("Error", f"Failed to import model:\n{str(e)}")
 
-# Load weights
-#  load the .pth file (model weights) into a previously loaded model
 def load_model_weights():
-    global selected_model, model_file_path
-
+    global selected_model, model_file_path, npz_file_path
     if selected_model is None:
         messagebox.showerror("Error", "Please load a model architecture file first!")
         return
-
-    file_path = filedialog.askopenfilename(filetypes=[("Model Files", "*.pth")]) #.pth files store saved weights of a PyTorch model
+    file_path = filedialog.askopenfilename(filetypes=[("Model Files", "*.pth")])
     if not file_path:
         messagebox.showwarning("Warning", "No model weights selected.")
         return
-
     try:
-        # load_state_dict() inserts those weights
-        selected_model.load_state_dict(torch.load(file_path, map_location=torch.device("cpu"))) #Loads the model’s saved parameters using PyTorch’s torch.load()
-        selected_model.eval() #in inference mode
-        
-        
-        
-        # compute_layer_shapes()
+        selected_model.load_state_dict(torch.load(file_path, map_location=torch.device("cpu")))
+        selected_model.eval()
+        npz_file_path = None  # Reset npz_file_path on weights change
+        logging.debug(f"Weights loaded, npz_file_path reset to: {npz_file_path}")
+        print(f"Weights loaded, npz_file_path reset to: {npz_file_path}")  # Debug
         messagebox.showinfo("Model Loaded", f"{selected_model_name} weights loaded successfully!")
-        
         if model_file_path:
             show_model_file_contents(model_file_path)
-            
     except Exception as e:
+        logging.error(f"Failed to load model weights: {e}")
         messagebox.showerror("Error", f"Failed to load model weights:\n{str(e)}")
 
-# GUI
+def run_visualisation():
+    global npz_file_path
+    logging.debug(f"run_visualisation called with npz_file_path: {npz_file_path}")
+    print(f"run_visualisation called with npz_file_path: {npz_file_path}")  # Debug
+    # Load persisted npz_file_path if not set
+    if npz_file_path is None:
+        last_npz_path_file = Path("last_npz_path.txt")
+        if last_npz_path_file.exists():
+            with open(last_npz_path_file, "r") as f:
+                npz_file_path = f.read().strip()
+            logging.debug(f"Loaded npz_file_path from last_npz_path.txt: {npz_file_path}")
+            print(f"Loaded npz_file_path from last_npz_path.txt: {npz_file_path}")  # Debug
+        else:
+            # Fallback to latest .npz file in features directory
+            npz_files = glob("features/**/*.npz", recursive=True)
+            if npz_files:
+                npz_file_path = max(npz_files, key=os.path.getmtime)
+                logging.debug(f"Fallback to latest .npz file: {npz_file_path}")
+                print(f"Fallback to latest .npz file: {npz_file_path}")  # Debug
+
+    # Normalize path
+    if npz_file_path:
+        npz_path = Path(npz_file_path)
+        try:
+            npz_file_path = str(npz_path.resolve())
+            logging.debug(f"Normalized npz_file_path: {npz_file_path}")
+            print(f"Normalized npz_file_path: {npz_file_path}")  # Debug
+        except Exception as e:
+            logging.error(f"Failed to resolve path {npz_file_path}: {e}")
+            messagebox.showerror("Error", f"Invalid path: {npz_file_path}\n{str(e)}")
+            return
+
+    # Check if file exists
+    if npz_file_path is None or not Path(npz_file_path).exists():
+        logging.error(f"No valid feature file found. Path: {npz_file_path}")
+        messagebox.showerror("Error", f"No valid feature file found. Please extract features first! Path: {npz_file_path}")
+        return
+
+    # Verify file accessibility
+    try:
+        with open(npz_file_path, "rb") as f:
+            pass
+        logging.debug(f"File is accessible: {npz_file_path}")
+        print(f"File is accessible: {npz_file_path}")  # Debug
+    except Exception as e:
+        logging.error(f"Cannot access file {npz_file_path}: {e}")
+        messagebox.showerror("Error", f"Cannot access file: {npz_file_path}\n{str(e)}")
+        return
+
+    try:
+        logging.debug(f"Launching NpyVisualizerApp with: {npz_file_path}")
+        print(f"Launching NpyVisualizerApp with: {npz_file_path}")  # Debug
+        print(f"File exists check: {os.path.isfile(npz_file_path)}")  # Debug
+        viz_window = tk.Toplevel(root)
+        viz_window.title("CNN Embedding Analysis")
+        app = NpyVisualizerApp(viz_window, npz_file_path)
+    except Exception as e:
+        logging.error(f"Failed to launch visualization: {e}")
+        messagebox.showerror("Error", f"Failed to launch visualization: {str(e)}")
+
 def main_screen():
-    global root, mode
-    global width_var, height_var, channel_var
+    global root, mode, width_var, height_var, channel_var
     root = tk.Tk()
     mode = tk.StringVar(value="Pretrained")
-
-    # root.title("Unified PyTorch Feature Extractor")
     root.title("Model Feature Extractor")
-
     ttk.Label(root, text="Model Feature Extractor", font=("Arial", 14)).pack(pady=10)
-
-    # Mode selector
     mode_frame = ttk.LabelFrame(root, text="Model Mode")
     mode_frame.pack(pady=5, padx=10, fill="x")
     ttk.Radiobutton(mode_frame, text="Pretrained", variable=mode, value="Pretrained").pack(side="left", padx=10)
     ttk.Radiobutton(mode_frame, text="Custom (.py + .pth)", variable=mode, value="Custom").pack(side="left", padx=10)
-
-    # Dynamic model selection section
     model_options_frame = ttk.LabelFrame(root, text="Step 1: Select Model")
     model_options_frame.pack(pady=10, padx=10, fill="x")
 
     def update_buttons():
-        
-        global width_var, height_var, channel_var
-        
         for widget in model_options_frame.winfo_children():
             widget.destroy()
-
         if mode.get() == "Pretrained":
             for model_name in PRETRAINED_MODELS.keys():
                 ttk.Button(model_options_frame, text=f" {model_name} ",
                            command=lambda n=model_name: select_pretrained_model(n)).pack(pady=2)
         else:
-            
             ttk.Button(model_options_frame, text="Select Model Definition (.py)",
                        command=select_model_file).pack(pady=2)
             ttk.Button(model_options_frame, text="Load Model Weights (.pth)",
                        command=load_model_weights).pack(pady=2)
-            
-            # Add width and height input fields for custom models
             ttk.Label(model_options_frame, text="Input Dimensions (m X n):").pack(pady=5)
-
-            # Create a frame to hold the width and height entries and center it
             dim_frame = ttk.Frame(model_options_frame)
-            dim_frame.pack(pady=5)  # Centered by default inside model_options_frame
-
-            width_var = tk.StringVar(value="")  # No default value
-            height_var = tk.StringVar(value="")  # No default value
-
+            dim_frame.pack(pady=5)
+            global width_var, height_var, channel_var
+            width_var = tk.StringVar(value="224")
+            height_var = tk.StringVar(value="224")
             ttk.Entry(dim_frame, textvariable=width_var, width=10).pack(side="left", padx=5)
             ttk.Label(dim_frame, text="X").pack(side="left")
             ttk.Entry(dim_frame, textvariable=height_var, width=10).pack(side="left", padx=5)
-            
-            
-            # Add checkbox to select whether to use RGB for images
-            channel_var = tk.BooleanVar(value=True)  # Default to RGB
+            channel_var = tk.BooleanVar(value=True)
             ttk.Checkbutton(model_options_frame, text="Use RGB Channel (True/False)", variable=channel_var).pack(pady=5)
 
-    mode.trace_add("write", lambda *args: update_buttons()) #which calls a function whenever the value of the variable changes.
+    mode.trace_add("write", lambda *args: update_buttons())
     update_buttons()
-
     ttk.Button(root, text="Step 2: View Model Architecture", command=show_model_architecture).pack(pady=5)
-
+    ttk.Button(root, text="Step 3: Embedding Analysis for Semantic Relationships", command=run_visualisation).pack(pady=5)
     root.mainloop()
-
 
 if __name__ == "__main__":
     main_screen()
-    
-"""
-HOW TO RUN
-
-1)
-32 X 32 
-checkbox = True
-
-custom_cnn_definition.py
-saved_models/custom_cnn.pth
-
-Screenshots/folder1
-
-
-
-2)
-28 X 28 
-checkbox = False
-
-custom_cnn2_definition.py
-saved_models/custom_cnn2.pth
-
-Screenshots/folder1
-
-
-
-"""     
-
-
-
-
-"""
-ask_download_weights() -> get_model() ->  main_screen() -> 
-                                                            1) select_pretrained_model() -> compute_layer_shapes() -> hook_fn()
-                                                            2) select_model_file() -> choose_model_class() 
-                                                                                   -> getattr()
-                                                            3) load_model_weights() -> show_model_file_contents()
-                                                            4) show_model_architecture() -> compute_layer_shapes()
-                                                                                         -> extract_features()
-                                                                                                -> handle_folder_selection()
-                                                                                                        -> preprocess_image()
-
-
-"""
+# ```
