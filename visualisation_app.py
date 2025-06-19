@@ -20,7 +20,7 @@ logging.basicConfig(filename="app.log", level=logging.DEBUG, format="%(asctime)s
 warnings.simplefilter("ignore", category=UserWarning)
 
 class NpyVisualizerApp:
-    def __init__(self, root, file_path=None):
+    def __init__(self, root, dim_options,algo_options, file_path=None):
         self.root = root
         self.root.title("CNN Embedding Analysis for Semantic Relationships")
         self.root.geometry("1200x800")
@@ -33,12 +33,13 @@ class NpyVisualizerApp:
         self.frame.rowconfigure(2, weight=0)
         self.frame.rowconfigure(3, weight=0)
         self.frame.rowconfigure(4, weight=1)
-        self.dim = tk.StringVar(value="2D")
+        
+        self.dim = tk.StringVar(value=dim_options)
         self.dropdown_label1 = tk.Label(self.frame, text="Choose Dimension:")
         self.dropdown_label1.grid(row=0, column=0, padx=5, pady=5, sticky="e")
         self.dropdown_dim = tk.OptionMenu(self.frame, self.dim, "2D", "3D")
         self.dropdown_dim.grid(row=0, column=1, padx=5, pady=5, sticky="w")
-        self.opt = tk.StringVar(value="PCA")
+        self.opt = tk.StringVar(value=algo_options)
         self.dropdown_label = tk.Label(self.frame, text="Choose Reduction Method:")
         self.dropdown_label.grid(row=1, column=0, padx=5, pady=5, sticky="e")
         self.dropdown_opt = tk.OptionMenu(self.frame, self.opt, "PCA", "TruncatedSVD")

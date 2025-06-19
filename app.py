@@ -1,5 +1,6 @@
 # ```python
 import tkinter as tk
+from tkinter import *
 from tkinter import ttk, messagebox, filedialog, simpledialog
 import torch
 import torch.nn as nn
@@ -24,6 +25,8 @@ logging.basicConfig(filename="app.log", level=logging.DEBUG, format="%(asctime)s
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # Globals
+dim_options=""
+algo_options=""
 selected_model = None
 features = {}
 layer_shapes = {}
@@ -313,17 +316,59 @@ def show_model_architecture():
     if not selected_model:
         messagebox.showerror("Error", "Please load/select a model first!")
         return
+
     compute_layer_shapes()
     if not layer_shapes:
         messagebox.showerror("Error", "No layers found in the model!")
         return
+
+    # Create a new window
     arch_window = tk.Toplevel(root)
     arch_window.title("Model Architecture")
-    ttk.Label(arch_window, text="Layer Naming Convention: [Batch, Features]", font=("Arial", 10)).pack(pady=5)
+    arch_window.geometry("600x500")
+    arch_window.configure(bg="#f7f9fc")
+
+    # Label for naming convention
+    ttk.Label(arch_window, text="Layer Naming Convention: [Batch, Features]",
+              font=("Segoe UI", 10), background="#f7f9fc").pack(pady=5)
+
+    # Container frame
+    container = ttk.Frame(arch_window)
+    container.pack(fill="both", expand=True, padx=10, pady=5)
+
+    # Create canvas + scrollbar
+    canvas = tk.Canvas(container, borderwidth=0, background="#ffffff", highlightthickness=0)
+    scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+    scrollable_frame = ttk.Frame(canvas)
+
+    # Configure canvas scrolling
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(
+            scrollregion=canvas.bbox("all")
+        )
+    )
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    def _on_mousewheel(event):
+        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    canvas.bind_all("<MouseWheel>", _on_mousewheel)  # Windows/macOS
+    canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))  # Linux scroll up
+    canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))   # Linux scroll down
+
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    # Pack canvas and scrollbar
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    # Populate scrollable frame with model layers
     for name, shape in layer_shapes.items():
         shape_text = f"{name} - [{', '.join(map(str, shape))}]"
-        ttk.Button(arch_window, text=shape_text,
-                   command=lambda n=name, w=arch_window: extract_features(n, w)).pack(pady=2)
+        ttk.Button(scrollable_frame, text=shape_text,
+                   command=lambda n=name, w=arch_window: extract_features(n, w)
+                   ).pack(anchor="w", pady=4, padx=10, fill="x")
+
 
 def select_pretrained_model(name):
     global selected_model, selected_model_name, npz_file_path
@@ -504,53 +549,111 @@ def run_visualisation():
         print(f"File exists check: {os.path.isfile(npz_file_path)}")  # Debug
         viz_window = tk.Toplevel(root)
         viz_window.title("CNN Embedding Analysis")
-        app = NpyVisualizerApp(viz_window, npz_file_path)
+        app = NpyVisualizerApp(viz_window, dim_var.get(), algo_var.get(), npz_file_path)
     except Exception as e:
         logging.error(f"Failed to launch visualization: {e}")
         messagebox.showerror("Error", f"Failed to launch visualization: {str(e)}")
 
+# import tkinter as tk
+# from tkinter import ttk
+# from tkinter import StringVar
+
 def main_screen():
-    global root, mode, width_var, height_var, channel_var
+    global root, mode, width_var, height_var, channel_var,dim_var, algo_var
     root = tk.Tk()
-    mode = tk.StringVar(value="Pretrained")
     root.title("Model Feature Extractor")
-    ttk.Label(root, text="Model Feature Extractor", font=("Arial", 14)).pack(pady=10)
-    mode_frame = ttk.LabelFrame(root, text="Model Mode")
-    mode_frame.pack(pady=5, padx=10, fill="x")
-    ttk.Radiobutton(mode_frame, text="Pretrained", variable=mode, value="Pretrained").pack(side="left", padx=10)
-    ttk.Radiobutton(mode_frame, text="Custom (.py + .pth)", variable=mode, value="Custom").pack(side="left", padx=10)
-    model_options_frame = ttk.LabelFrame(root, text="Step 1: Select Model")
-    model_options_frame.pack(pady=10, padx=10, fill="x")
+    root.geometry("700x750")
+    root.configure(bg="#f7f9fc")
+
+    # Modern style
+    style = ttk.Style()
+    style.theme_use("clam")
+
+    # Universal font
+    default_font = ("Segoe UI", 10)
+    heading_font = ("Segoe UI", 14, "bold")
+
+    style.configure("TLabel", font=default_font, background="#f7f9fc")
+    style.configure("TButton", font=default_font, padding=6)
+    style.configure("TCheckbutton", font=default_font)
+    style.configure("TCombobox", padding=6)
+
+    # Custom modern label frame
+    style.configure("Modern.TLabelframe",
+                    background="#ffffff",
+                    borderwidth=1,
+                    relief="solid")
+
+    style.configure("Modern.TLabelframe.Label",
+                    background="#ffffff",
+                    font=("Segoe UI", 11, "bold"))
+
+    # Heading
+    ttk.Label(root, text="🧠 Model Feature Extractor", font=heading_font, anchor="center").pack(pady=20)
+
+    # Mode selector
+    mode = tk.StringVar(value="Pretrained")
+    mode_frame = ttk.LabelFrame(root, text="Model Mode", style="Modern.TLabelframe")
+    mode_frame.pack(pady=10, padx=20, fill="x")
+
+    ttk.Radiobutton(mode_frame, text="Pretrained", variable=mode, value="Pretrained").pack(side="left", padx=20, pady=10)
+    ttk.Radiobutton(mode_frame, text="Custom (.py + .pth)", variable=mode, value="Custom").pack(side="left", padx=20)
+
+    # Model selection
+    model_options_frame = ttk.LabelFrame(root, text="Step 1: Select Model", style="Modern.TLabelframe")
+    model_options_frame.pack(pady=10, padx=20, fill="x")
 
     def update_buttons():
         for widget in model_options_frame.winfo_children():
             widget.destroy()
         if mode.get() == "Pretrained":
             for model_name in PRETRAINED_MODELS.keys():
-                ttk.Button(model_options_frame, text=f" {model_name} ",
-                           command=lambda n=model_name: select_pretrained_model(n)).pack(pady=2)
+                ttk.Button(model_options_frame, text=model_name,
+                           command=lambda n=model_name: select_pretrained_model(n)).pack(pady=4, padx=10, fill="x")
         else:
-            ttk.Button(model_options_frame, text="Select Model Definition (.py)",
-                       command=select_model_file).pack(pady=2)
-            ttk.Button(model_options_frame, text="Load Model Weights (.pth)",
-                       command=load_model_weights).pack(pady=2)
-            ttk.Label(model_options_frame, text="Input Dimensions (m X n):").pack(pady=5)
+            ttk.Button(model_options_frame, text="Select Model Definition (.py)", command=select_model_file).pack(pady=5)
+            ttk.Button(model_options_frame, text="Load Model Weights (.pth)", command=load_model_weights).pack(pady=5)
+
+            ttk.Label(model_options_frame, text="Input Dimensions (Width x Height):").pack(pady=(10, 5))
             dim_frame = ttk.Frame(model_options_frame)
             dim_frame.pack(pady=5)
-            global width_var, height_var, channel_var
+
             width_var = tk.StringVar(value="224")
             height_var = tk.StringVar(value="224")
-            ttk.Entry(dim_frame, textvariable=width_var, width=10).pack(side="left", padx=5)
-            ttk.Label(dim_frame, text="X").pack(side="left")
-            ttk.Entry(dim_frame, textvariable=height_var, width=10).pack(side="left", padx=5)
+
+            ttk.Entry(dim_frame, textvariable=width_var, width=8).pack(side="left", padx=5)
+            ttk.Label(dim_frame, text="x").pack(side="left")
+            ttk.Entry(dim_frame, textvariable=height_var, width=8).pack(side="left", padx=5)
+
             channel_var = tk.BooleanVar(value=True)
-            ttk.Checkbutton(model_options_frame, text="Use RGB Channel (True/False)", variable=channel_var).pack(pady=5)
+            ttk.Checkbutton(model_options_frame, text="Use RGB Channel", variable=channel_var).pack(pady=10)
 
     mode.trace_add("write", lambda *args: update_buttons())
     update_buttons()
-    ttk.Button(root, text="Step 2: View Model Architecture", command=show_model_architecture).pack(pady=5)
-    ttk.Button(root, text="Step 3: Embedding Analysis for Semantic Relationships", command=run_visualisation).pack(pady=5)
+
+    # Step 2
+    stp2frm = ttk.LabelFrame(root, text="Step 2: View Model Architecture", style="Modern.TLabelframe")
+    stp2frm.pack(pady=10, padx=20, fill="x")
+    ttk.Button(stp2frm, text="View Model Architecture", command=show_model_architecture).pack(pady=10)
+
+    # Step 3
+    stp3frm = ttk.LabelFrame(root, text="Step 3: Embedding Analysis", style="Modern.TLabelframe")
+    stp3frm.pack(pady=10, padx=20, fill="x")
+
+    ttk.Label(stp3frm, text="Select Dimension:").pack(pady=(10, 3))
+    dim_options = ["2D","3D"]
+    dim_var = StringVar(value=dim_options[0])
+    ttk.Combobox(stp3frm, textvariable=dim_var, values=dim_options, state="readonly").pack(pady=5, padx=20, fill="x")
+
+    ttk.Label(stp3frm, text="Feature Reduction Algorithm:").pack(pady=(10, 3))
+    algo_options = ["PCA", "TruncatedSVD"]
+    algo_var = StringVar(value=algo_options[0])
+    ttk.Combobox(stp3frm, textvariable=algo_var, values=algo_options, state="readonly").pack(pady=5, padx=20, fill="x")
+
+    ttk.Button(stp3frm, text="Run Embedding Analysis", command=run_visualisation).pack(pady=15)
+
     root.mainloop()
+
 
 if __name__ == "__main__":
     main_screen()
