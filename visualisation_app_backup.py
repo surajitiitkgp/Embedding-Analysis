@@ -1,4 +1,3 @@
-# ```python
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
@@ -20,7 +19,7 @@ logging.basicConfig(filename="app.log", level=logging.DEBUG, format="%(asctime)s
 warnings.simplefilter("ignore", category=UserWarning)
 
 class NpyVisualizerApp:
-    def __init__(self, root, dim_options,algo_options, file_path=None):
+    def __init__(self, root, dim_options, algo_options, file_path=None):
         self.root = root
         self.root.title("CNN Embedding Analysis for Semantic Relationships")
         self.root.geometry("1200x800")
@@ -46,7 +45,6 @@ class NpyVisualizerApp:
         self.dropdown_opt.grid(row=1, column=1, padx=5, pady=5, sticky="w")
         self.btn_load_folder = tk.Button(self.frame, text="Load Folder of NPY Files", command=self.load_folder)
         self.btn_load_folder.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
-        # Disable manual NPZ loading button to prevent confusion
         self.btn_load_file = tk.Button(self.frame, text="Load NPZ File", command=self.load_npz)
         self.btn_load_file.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
         self.metadata_text = tk.Text(self.frame, height=12, width=50)
@@ -63,10 +61,9 @@ class NpyVisualizerApp:
         self.distances_per_class = {}
         if file_path:
             try:
-                # Normalize and validate path
                 file_path = str(Path(file_path).resolve())
                 logging.debug(f"Initializing with file_path: {file_path}")
-                print(f"Initializing with file_path: {file_path}")  # Debug
+                print(f"Initializing with file_path: {file_path}")
                 if os.path.exists(file_path):
                     self.file_path = file_path
                     self.load_npz(auto=True)
@@ -90,14 +87,13 @@ class NpyVisualizerApp:
                 return
             self.file_path = file_path
         logging.debug(f"Attempting to load NPZ file: {file_path}")
-        print(f"Attempting to load NPZ file: {file_path}")  # Debug
+        print(f"Attempting to load NPZ file: {file_path}")
         try:
-            # Validate file integrity
             with zipfile.ZipFile(file_path, 'r') as zf:
                 if zf.testzip() is not None:
                     raise zipfile.BadZipFile("NPZ file is corrupted")
             logging.debug(f"NPZ file integrity verified: {file_path}")
-            print(f"NPZ file integrity verified: {file_path}")  # Debug
+            print(f"NPZ file integrity verified: {file_path}")
             if file_path.endswith('.npy'):
                 data = np.load(file_path)
                 if data.ndim == 1:
@@ -153,7 +149,7 @@ class NpyVisualizerApp:
             self.display_metadata()
             self.visualize_all()
             logging.debug(f"Successfully loaded file: {file_path}")
-            print(f"Successfully loaded file: {file_path}")  # Debug
+            print(f"Successfully loaded file: {file_path}")
         except zipfile.BadZipFile as e:
             self.insert_error(f"Corrupted NPZ file: {e}")
             logging.error(f"Corrupted NPZ file: {e}")
@@ -181,7 +177,7 @@ class NpyVisualizerApp:
                     kmeans = KMeans(n_clusters=n_clusters, random_state=42)
                     labels = kmeans.fit_predict(StandardScaler().fit_transform(features))
                     self.insert_metadata("Info", f"Generated {n_clusters} pseudo-labels using K-means.")
-                    return {'features': features, 'inferred_labels': labels}
+                    return {'features': features, 'labels': labels}
         window_size = 1024
         n_samples = n_elements // window_size
         if n_samples > 1:
@@ -191,7 +187,7 @@ class NpyVisualizerApp:
             kmeans = KMeans(n_clusters=n_clusters, random_state=42)
             labels = kmeans.fit_predict(StandardScaler().fit_transform(features))
             self.insert_metadata("Info", f"Generated {n_clusters} pseudo-labels using K-means.")
-            return {'features': features, 'inferred_labels': labels}
+            return {'features': features, 'labels': labels}
         self.insert_metadata("Error", "Failed to reshape or segment 1D array into features.")
         return None
 
@@ -206,9 +202,9 @@ class NpyVisualizerApp:
             features = []
             labels = []
             expected_shape = None
-            for file_name in os.listdir(folder_path):
-                if file_name.endswith('.npy'):
-                    file_path = os.path.join(folder_path, file_name)
+            for fname in os.listdir(folder_path):
+                if fname.endswith('.npy'):
+                    file_path = os.path.join(folder_path, fname)
                     data = np.load(file_path)
                     if data.ndim == 4 and data.shape[0] == 1:
                         flattened = data.flatten()
@@ -216,28 +212,28 @@ class NpyVisualizerApp:
                             expected_shape = flattened.shape
                         elif flattened.shape != expected_shape:
                             self.insert_error(
-                                f"Dimension mismatch in {file_name}: got shape {flattened.shape}, expected {expected_shape}"
+                                f"Dimension mismatch in {fname}: got shape {flattened.shape}, expected {expected_shape}"
                             )
-                            logging.error(f"Dimension mismatch in {file_name}")
+                            logging.error(f"Dimension mismatch in {fname}")
                             return
                         features.append(flattened)
-                        label = os.path.splitext(file_name)[0].split('_')[0]
+                        label = os.path.splitext(fname)[0].split('_')[0]
                         labels.append(label)
                     else:
-                        self.insert_metadata("Warning", f"Skipping {file_name}: expected 4D array with batch=1, got shape {data.shape}")
-                        logging.warning(f"Skipped {file_name}: invalid shape")
+                        self.insert_metadata("Warning", f"Skipping {fname}: expected 4D array with batch=1, got shape {data.shape}")
+                        logging.warning(f"Skipped {fname}: invalid shape")
             if features:
                 try:
                     self.data = {'features': np.vstack(features)}
                     self.labels = np.array(labels)
                     n_samples, n_features = self.data['features'].shape
                     if n_features < 2:
-                        self.insert_metadata("Error", f"Too few features ({n_features}) for visualization. Need at least 2.")
+                        self.insert_metadata("Error", f"Too few features ({n_features}) for visualization.")
                         self.data = None
                         logging.error(f"Too few features: {n_features}")
                         return
                     if n_samples < 2:
-                        self.insert_metadata("Error", f"Too few samples ({n_samples}) for visualization. Need at least 2.")
+                        self.insert_metadata("Error", f"Too few samples ({n_samples}) for visualization.")
                         self.data = None
                         logging.error(f"Too few samples: {n_samples}")
                         return
@@ -289,18 +285,27 @@ class NpyVisualizerApp:
     def get_label_array(self, data, feature_key):
         return self.labels, 'labels' if self.labels is not None else (None, None)
 
+    def compute_mode_distance(self, distances):
+        """Approximate mode of continuous distances using histogram."""
+        if distances.size == 0:
+            return 0.0
+        hist, bin_edges = np.histogram(distances, bins=20, density=True)
+        mode_idx = np.argmax(hist)
+        mode_distance = (bin_edges[mode_idx] + bin_edges[mode_idx + 1]) / 2
+        return mode_distance
+
     def visualize_featuresPCA(self, features, labels=None, feature_name="Features", labels_name=None):
         if not self.is_feature_array(features):
             if features.ndim == 4 and features.shape[0] == 1:
                 features = features.reshape(1, -1)
             else:
-                self.insert_metadata("Error", f"Cannot visualize {feature_name} with shape {features.shape}. Expected 2D or 4D (1, C, H, W).")
+                self.insert_metadata("Error", f"Cannot visualize {feature_name} with shape {features.shape}.")
                 self.fallback_visualization(features, feature_name, labels=labels)
                 return
         n_samples, n_features = features.shape
         indices = None
         if n_samples > self.max_samples:
-            self.insert_metadata("Info", f"Downsampling {feature_name} from {n_samples} to {self.max_samples} samples for t-SNE.")
+            self.insert_metadata("Info", f"Downsampling {feature_name} from {n_samples} to {self.max_samples} samples.")
             indices = np.random.choice(n_samples, self.max_samples, replace=False)
             features = features[indices]
             labels = labels[indices] if labels is not None else None
@@ -313,7 +318,7 @@ class NpyVisualizerApp:
         features = StandardScaler().fit_transform(features)
         if n_features > 50:
             n_components = min(n_samples, n_features, 50)
-            self.insert_metadata("Info", f"Reducing {n_features} features to {n_components} with PCA for t-SNE...")
+            self.insert_metadata("Info", f"Reducing {n_features} features to {n_components} with PCA...")
             try:
                 pca = PCA(n_components=n_components, random_state=42)
                 features = pca.fit_transform(features)
@@ -327,91 +332,174 @@ class NpyVisualizerApp:
         try:
             tsne = TSNE(n_components=2, perplexity=perplexity, n_iter=1000, random_state=42, n_jobs=-1)
             features_tsne = tsne.fit_transform(features)
-            fig, ax = plt.subplots(figsize=(20, 8))
+
+            # Figure 1: Graph with Legend
+            fig_graph = plt.figure(figsize=(15, 6))
+            ax_graph = fig_graph.add_subplot(111)
             x = features_tsne[:, 0]
             y = features_tsne[:, 1]
             centroids = []
             self.distances_per_class = {}
-            distance_text = []
             if labels is not None:
                 labels = np.array(labels, dtype=str)
                 unique_labels = np.unique(labels)
-                if len(unique_labels) <= 100:
-                    colors = plt.cm.get_cmap('hsv')(np.linspace(0, 1, len(unique_labels)))
-                    for idx, label in enumerate(unique_labels):
-                        mask = labels == label
-                        if np.sum(mask) > 0:
-                            ax.scatter(x[mask], y[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.7, s=60)
-                            centroid = np.mean(features_tsne[mask], axis=0)
-                            centroids.append((label, centroid))
-                            ax.scatter([centroid[0]], [centroid[1]], c=[colors[idx]], marker='X', s=200, edgecolors='black', label=f"Centroid {label}")
-                            class_points = features_tsne[mask]
-                            for point in class_points:
-                                ax.plot([point[0], centroid[0]], [point[1], centroid[1]], c=colors[idx], alpha=0.3, linewidth=0.5)
-                            distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
-                            self.distances_per_class[label] = distances
-                            distance_text.append(f"Class {label} Distance Stats:\nMean={np.mean(distances):.4f}, Min={np.min(distances):.4f}, Max={np.max(distances):.4f}")
-                    ax.legend(title=f"Classes: {len(unique_labels)}", fancybox=True, frameon=True, bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
-                    self.insert_metadata("Info", f"Visualizing classes: {unique_labels}")
-                    distance_str = "\n".join(sorted(distance_text, key=lambda x: x.split()[1]))
-                    ax.text(1.10, 0.7, distance_str, transform=ax.transAxes, fontsize=8, verticalalignment='top',
-                            bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='black'))
+                self.insert_metadata("Info", f"Found {len(unique_labels)} unique labels: {unique_labels}")
+                if len(unique_labels) > 100:
+                    self.insert_metadata("Warning", f"Excessive classes ({len(unique_labels)}). Consider reducing class count.")
+                if len(unique_labels) <= 40:
+                    cmap_tab20 = plt.cm.get_cmap('tab20')
+                    cmap_tab20b = plt.cm.get_cmap('tab20b')
+                    colors = [cmap_tab20(i / 20) for i in range(20)] + [cmap_tab20b(i / 20) for i in range(20)]
+                    colors = colors[:len(unique_labels)]
                 else:
-                    self.insert_metadata("Warning", f"Too many unique labels ({len(unique_labels)}) for {feature_name}; using single color.")
-                    ax.scatter(x, y, c='blue', alpha=0.7, s=60)
+                    cmap = plt.cm.get_cmap('viridis')
+                    colors = [cmap(i / len(unique_labels)) for i in range(len(unique_labels))]
+                for idx, label in enumerate(unique_labels):
+                    mask = labels == label
+                    if np.sum(mask) > 0:
+                        ax_graph.scatter(x[mask], y[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.5, s=80)
+                        centroid = np.mean(features_tsne[mask], axis=0)
+                        centroids.append((label, centroid))
+                        ax_graph.scatter([centroid[0]], [centroid[1]], c=[colors[idx]], marker='X', s=200, edgecolors='black')
+                        class_points = features_tsne[mask]
+                        for point in class_points:
+                            ax_graph.plot([point[0], centroid[0]], [point[1], centroid[1]], c=colors[idx], alpha=0.3, linewidth=0.5)
+                        distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
+                        self.distances_per_class[label] = distances
+                max_legend_classes = 20
+                if len(unique_labels) > max_legend_classes:
+                    self.insert_metadata("Info", f"Showing {max_legend_classes} classes in legend. Full class list in centroid/distance files.")
+                    handles, legend_labels = ax_graph.get_legend_handles_labels()
+                    ax_graph.legend(handles[:max_legend_classes*2], legend_labels[:max_legend_classes*2], title=f"Classes: {len(unique_labels)}",
+                                bbox_to_anchor=(1.5, 1), loc='upper left', borderaxespad=0., fontsize=6, ncol=2)
+                else:
+                    ax_graph.legend(title=f"Classes: {len(unique_labels)}", bbox_to_anchor=(1.5, 1), loc='upper left',
+                                borderaxespad=0., fontsize=6, ncol=2)
             else:
-                ax.scatter(x, y, c='blue', alpha=0.7, s=60)
-            ax.set_title(f"2D t-SNE: Semantic Relationships ({feature_name})")
-            ax.set_xlabel("t-SNE 1")
-            ax.set_ylabel("t-SNE 2")
-            ax.grid(True, alpha=0.3)
+                ax_graph.scatter(x, y, c='blue', alpha=0.5, s=80)
+            ax_graph.set_title(f"2D t-SNE: Semantic Relationships ({feature_name})")
+            ax_graph.set_xlabel("t-SNE 1")
+            ax_graph.set_ylabel("t-SNE 2")
+            ax_graph.grid(True, alpha=0.3)
             plt.tight_layout()
-            fig.subplots_adjust(right=0.60, top=1, bottom=0.1)
-            try:
-                canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
-                canvas.draw()
-                canvas.get_tk_widget().pack(side="left", padx=10, pady=10)
-                toolbar = NavigationToolbar2Tk(canvas, self.plot_frame)
-                toolbar.update()
-                output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
-                output_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_tsne_2d.png")
-                fig.savefig(output_file, dpi=300, bbox_inches='tight')
-                self.insert_metadata("Info", f"2D t-SNE plot saved to {output_file}")
-                centroid_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_centroids_2d.txt")
-                with open(centroid_file, 'w') as f:
-                    f.write("Class Centroids in 2D t-SNE Space (x, y):\n")
-                    for label, centroid in centroids:
-                        f.write(f"Class {label}: ({centroid[0]:.4f}, {centroid[1]:.4f})\n")
-                self.insert_metadata("Info", f"Centroid coordinates saved to {centroid_file}")
-                for label, centroid in centroids:
-                    self.insert_metadata("Info", f"Centroid for Class {label}: ({centroid[0]:.4f}, {centroid[1]:.4f})")
-                distance_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_distances_2d.txt")
-                with open(distance_file, 'w') as f:
+            fig_graph.subplots_adjust(right=0.85)
+            output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
+            graph_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_graph_2d.png")
+            fig_graph.savefig(graph_file, dpi=300, bbox_inches='tight')
+            self.insert_metadata("Info", f"Graph with legend saved to {graph_file}")
+
+            # Figure 2: Distance Map Table
+            if labels is not None and centroids:
+                fig_dist = plt.figure(figsize=(6, 4))
+                ax_dist = fig_dist.add_subplot(111)
+                table_data = []
+                for label, distances in self.distances_per_class.items():
+                    mode_distance = self.compute_mode_distance(distances)
+                    table_data.append([f"Class {label}", f"{np.mean(distances):.4f}", f"{mode_distance:.4f}", f"{np.max(distances):.4f}"])
+                max_text_classes = 10
+                if len(unique_labels) > max_text_classes:
+                    table_data = sorted(table_data, key=lambda x: x[0])[:max_text_classes]
+                else:
+                    table_data = sorted(table_data, key=lambda x: x[0])
+                table = ax_dist.table(cellText=table_data, colLabels=['Class', 'Mean', 'Mode', 'Max'],
+                                    loc='center', cellLoc='center')
+                table.auto_set_font_size(False)
+                table.set_fontsize(8)
+                table.scale(1.5, 1.5)
+                ax_dist.axis('off')
+                plt.tight_layout()
+                dist_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_distance_map_2d.png")
+                fig_dist.savefig(dist_file, dpi=300, bbox_inches='tight')
+                self.insert_metadata("Info", f"Distance map saved to {dist_file}")
+                with open(os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_distances_2d.txt"), 'w') as f:
                     f.write("Distances from Data Points to Centroids in 2D t-SNE Space:\n")
                     for label, distances in sorted(self.distances_per_class.items(), key=lambda x: x[0]):
+                        mode_distance = self.compute_mode_distance(distances)
                         f.write(f"\nClass {label}:\n")
                         f.write(f"  Mean Distance: {np.mean(distances):.4f}\n")
-                        f.write(f"  Min Distance: {np.min(distances):.4f}\n")
+                        f.write(f"  Mode Distance: {mode_distance:.4f}\n")
                         f.write(f"  Max Distance: {np.max(distances):.4f}\n")
                         f.write("  Individual Distances:\n")
                         for i, dist in enumerate(distances):
                             f.write(f"    Point {i}: {dist:.4f}\n")
-                self.insert_metadata("Info", f"Distances saved to {distance_file}")
+                self.insert_metadata("Info", f"Distances saved to {os.path.join(output_dir, f'{os.path.splitext(os.path.basename(self.file_path))[0]}_distances_2d.txt')}")
+
+            # Figure 3: Heatmap
+            if labels is not None and len(centroids) > 1:
+                fig_heat = plt.figure(figsize=(6, 6))
+                ax_heat = fig_heat.add_subplot(111)
+                centroid_coords = np.array([c[1] for c in centroids])
+                centroid_labels = [c[0] for c in centroids]
+                interclass_dists = squareform(pdist(centroid_coords, metric='euclidean'))
+                heatmap = ax_heat.matshow(interclass_dists, cmap='viridis')
+                ax_heat.set_xticks(np.arange(len(centroid_labels)))
+                ax_heat.set_yticks(np.arange(len(centroid_labels)))
+                ax_heat.set_xticklabels(centroid_labels, rotation=45, ha='left', fontsize=6)
+                ax_heat.set_yticklabels(centroid_labels, fontsize=6)
+                ax_heat.set_title("Inter-Class Centroid Distances")
+                fig_heat.colorbar(heatmap, ax=ax_heat, label='Distance')
+                for i in range(len(centroid_labels)):
+                    for j in range(len(centroid_labels)):
+                        ax_heat.text(j, i, f"{interclass_dists[i,j]:.2f}", ha='center', va='center', fontsize=6, color='white')
+                plt.tight_layout()
+                heat_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_heatmap_2d.png")
+                fig_heat.savefig(heat_file, dpi=300, bbox_inches='tight')
+                self.insert_metadata("Info", f"Heatmap saved to {heat_file}")
+                with open(os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_interclass_distances_2d.txt"), 'w') as f:
+                    f.write("Inter-Class Centroid Distances in 2D t-SNE Space:\n")
+                    f.write("\t" + "\t".join(centroid_labels) + "\n")
+                    for i, label in enumerate(centroid_labels):
+                        f.write(f"{label}\t" + "\t".join(f"{d:.4f}" for d in interclass_dists[i]) + "\n")
+                self.insert_metadata("Info", f"Inter-class distances saved to {os.path.join(output_dir, f'{os.path.splitext(os.path.basename(self.file_path))[0]}_interclass_distances_2d.txt')}")
+
+            # Display combined figure for interactivity
+            fig_combined = plt.figure(figsize=(25, 10))
+            ax_combined = fig_combined.add_subplot(121)
+            ax_heat_combined = fig_combined.add_subplot(122)
+            ax_combined.scatter(x, y, c='blue' if labels is None else [colors[i % len(colors)] for i in range(len(x))], alpha=0.5, s=80)
+            if labels is not None and centroids:
+                for idx, (label, centroid) in enumerate(centroids):
+                    ax_combined.scatter([centroid[0]], [centroid[1]], c=[colors[idx]], marker='X', s=200, edgecolors='black')
+                if len(centroids) > 1:
+                    heatmap = ax_heat_combined.matshow(interclass_dists, cmap='viridis')
+                    ax_heat_combined.set_xticks(np.arange(len(centroid_labels)))
+                    ax_heat_combined.set_yticks(np.arange(len(centroid_labels)))
+                    ax_heat_combined.set_xticklabels(centroid_labels, rotation=45, ha='left', fontsize=6)
+                    ax_heat_combined.set_yticklabels(centroid_labels, fontsize=6)
+                    ax_heat_combined.set_title("Inter-Class Centroid Distances")
+                    fig_combined.colorbar(heatmap, ax=ax_heat_combined, label='Distance')
+                    for i in range(len(centroid_labels)):
+                        for j in range(len(centroid_labels)):
+                            ax_heat_combined.text(j, i, f"{interclass_dists[i,j]:.2f}", ha='center', va='center', fontsize=6, color='white')
+            ax_combined.set_title(f"2D t-SNE: Semantic Relationships ({feature_name})")
+            ax_combined.set_xlabel("t-SNE 1")
+            ax_combined.set_ylabel("t-SNE 2")
+            ax_combined.grid(True, alpha=0.3)
+            plt.tight_layout()
+            fig_combined.subplots_adjust(right=0.85, top=0.95, bottom=0.1, wspace=0.3)
+            try:
+                canvas = FigureCanvasTkAgg(fig_combined, master=self.plot_frame)
+                canvas.draw()
+                canvas.get_tk_widget().pack(side="left", padx=10, pady=10, expand=True, fill='both')
+                toolbar = NavigationToolbar2Tk(canvas, self.plot_frame)
+                toolbar.update()
             except Exception as e:
-                self.insert_error(f"Failed to render 2D t-SNE plot for {feature_name}: {e}")
+                self.insert_error(f"Failed to render combined plot for {feature_name}: {e}")
             self.insert_metadata("Success", f"2D t-SNE completed for {feature_name}. Closer points indicate similarity.")
-            plt.close(fig)
+            plt.close(fig_combined)
         except Exception as e:
             self.insert_error(f"2D t-SNE failed for {feature_name}: {e}")
             plt.close('all')
             self.fallback_visualization(features, feature_name, labels=labels)
+
+
 
     def visualize_featuresTruncatedSVD(self, features, labels=None, feature_name="Features", labels_name=None):
         if not self.is_feature_array(features):
             if features.ndim == 4 and features.shape[0] == 1:
                 features = features.reshape(1, -1)
             else:
-                self.insert_metadata("Error", f"Cannot visualize {feature_name} with shape {features.shape}. Expected 2D or 4D (1, C, H, W).")
+                self.insert_metadata("Error", f"Cannot visualize {feature_name} with shape {features.shape}.")
                 self.fallback_visualization(features, feature_name, labels=labels)
                 return
         n_samples, n_features = features.shape
@@ -423,14 +511,14 @@ class NpyVisualizerApp:
             labels = labels[indices] if labels is not None else None
             n_samples = self.max_samples
         elif n_samples < 2:
-            self.insert_metadata("Error", f"Too few samples for {feature_name}: {n_samples}. Need at least 2.")
+            self.insert_metadata("Error", f"Too few samples for {feature_name}: {n_samples}.")
             self.fallback_visualization(features, feature_name, labels=labels)
             return
         self.insert_metadata("Info", f"Normalizing features for {feature_name}...")
         features = StandardScaler().fit_transform(features)
         if n_features > 50:
             n_components = min(n_samples, n_features, 50)
-            self.insert_metadata("Info", f"Reducing {n_features} features to {n_components} with TruncatedSVD for t-SNE...")
+            self.insert_metadata("Info", f"Reducing {n_features} features to {n_components} with TruncatedSVD...")
             try:
                 svd = TruncatedSVD(n_components=n_components, random_state=42)
                 features = svd.fit_transform(features)
@@ -453,37 +541,56 @@ class NpyVisualizerApp:
             if labels is not None:
                 labels = np.array(labels, dtype=str)
                 unique_labels = np.unique(labels)
-                if len(unique_labels) <= 100:
-                    colors = plt.cm.get_cmap('hsv')(np.linspace(0, 1, len(unique_labels)))
-                    for idx, label in enumerate(unique_labels):
-                        mask = labels == label
-                        if np.sum(mask) > 0:
-                            ax.scatter(x[mask], y[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.7, s=60)
-                            centroid = np.mean(features_tsne[mask], axis=0)
-                            centroids.append((label, centroid))
-                            ax.scatter([centroid[0]], [centroid[1]], c=[colors[idx]], marker='X', s=200, edgecolors='black', label=f"Centroid {label}")
-                            class_points = features_tsne[mask]
-                            for point in class_points:
-                                ax.plot([point[0], centroid[0]], [point[1], centroid[1]], c=colors[idx], alpha=0.3, linewidth=0.5)
-                            distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
-                            self.distances_per_class[label] = distances
-                            distance_text.append(f"Class {label} Distance Stats:\nMean={np.mean(distances):.4f}, Min={np.min(distances):.4f}, Max={np.max(distances):.4f}")
-                    ax.legend(title=f"Classes: {len(unique_labels)}", fancybox=True, frameon=True, bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
-                    self.insert_metadata("Info", f"Visualizing classes: {unique_labels}")
-                    distance_str = "\n".join(sorted(distance_text, key=lambda x: x.split()[1]))
-                    ax.text(1.10, 0.7, distance_str, transform=ax.transAxes, fontsize=8, verticalalignment='top',
-                            bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='black'))
+                self.insert_metadata("Info", f"Found {len(unique_labels)} unique labels: {unique_labels}")
+                if len(unique_labels) > 100:
+                    self.insert_metadata("Warning", f"Excessive classes ({len(unique_labels)}). Consider reducing class count.")
+                if len(unique_labels) <= 40:
+                    cmap_tab20 = plt.cm.get_cmap('tab20')
+                    cmap_tab20b = plt.cm.get_cmap('tab20b')
+                    colors = [cmap_tab20(i / 20) for i in range(20)] + [cmap_tab20b(i / 20) for i in range(20)]
+                    colors = colors[:len(unique_labels)]
                 else:
-                    self.insert_metadata("Warning", f"Too many unique labels ({len(unique_labels)}) for {feature_name}; using single color.")
-                    ax.scatter(x, y, c='blue', alpha=0.7, s=60)
+                    cmap = plt.cm.get_cmap('viridis')
+                    colors = [cmap(i / len(unique_labels)) for i in range(len(unique_labels))]
+                for idx, label in enumerate(unique_labels):
+                    mask = labels == label
+                    if np.sum(mask) > 0:
+                        ax.scatter(x[mask], y[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.5, s=80)
+                        centroid = np.mean(features_tsne[mask], axis=0)
+                        centroids.append((label, centroid))
+                        ax.scatter([centroid[0]], [centroid[1]], c=[colors[idx]], marker='X', s=200, edgecolors='black')
+                        class_points = features_tsne[mask]
+                        for point in class_points:
+                            ax.plot([point[0], centroid[0]], [point[1], centroid[1]], c=colors[idx], alpha=0.3, linewidth=0.5)
+                        distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
+                        self.distances_per_class[label] = distances
+                        mode_distance = self.compute_mode_distance(distances)
+                        distance_text.append(f"Class {label}:\nMean={np.mean(distances):.4f}\nMode={mode_distance:.4f}\nMax={np.max(distances):.4f}")
+                max_legend_classes = 20
+                if len(unique_labels) > max_legend_classes:
+                    self.insert_metadata("Info", f"Showing {max_legend_classes} classes in legend. Full class list in centroid/distance files.")
+                    handles, legend_labels = ax.get_legend_handles_labels()
+                    ax.legend(handles[:max_legend_classes*2], legend_labels[:max_legend_classes*2], title=f"Classes: {len(unique_labels)}",
+                              bbox_to_anchor=(1.01, 1), loc='upper left', borderaxespad=0., fontsize=8, ncol=2)
+                else:
+                    ax.legend(title=f"Classes: {len(unique_labels)}", bbox_to_anchor=(1.01, 1), loc='upper left',
+                              borderaxespad=0., fontsize=8, ncol=2)
+                self.insert_metadata("Info", f"Visualizing classes: {unique_labels}")
+                max_text_classes = 10
+                if len(unique_labels) > max_text_classes:
+                    self.insert_metadata("Info", f"Showing stats for {max_text_classes} classes in plot. Full stats in distance file.")
+                    distance_text = distance_text[:max_text_classes]
+                distance_str = "\n\n".join(sorted(distance_text, key=lambda x: x.split(':')[0]))
+                ax.text(1.01, 0.5, distance_str, transform=ax.transAxes, fontsize=7, verticalalignment='top',
+                        bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='black'))
             else:
-                ax.scatter(x, y, c='blue', alpha=0.7, s=60)
+                ax.scatter(x, y, c='blue', alpha=0.5, s=80)
             ax.set_title(f"2D t-SNE: Semantic Relationships ({feature_name})")
             ax.set_xlabel("t-SNE 1")
             ax.set_ylabel("t-SNE 2")
             ax.grid(True, alpha=0.3)
             plt.tight_layout()
-            fig.subplots_adjust(right=0.60, top=1, bottom=0.1)
+            fig.subplots_adjust(right=0.55, top=1, bottom=0.1)
             try:
                 canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
                 canvas.draw()
@@ -506,9 +613,10 @@ class NpyVisualizerApp:
                 with open(distance_file, 'w') as f:
                     f.write("Distances from Data Points to Centroids in 2D t-SNE Space (TruncatedSVD):\n")
                     for label, distances in sorted(self.distances_per_class.items(), key=lambda x: x[0]):
+                        mode_distance = self.compute_mode_distance(distances)
                         f.write(f"\nClass {label}:\n")
                         f.write(f"  Mean Distance: {np.mean(distances):.4f}\n")
-                        f.write(f"  Min Distance: {np.min(distances):.4f}\n")
+                        f.write(f"  Mode Distance: {mode_distance:.4f}\n")
                         f.write(f"  Max Distance: {np.max(distances):.4f}\n")
                         f.write("  Individual Distances:\n")
                         for i, dist in enumerate(distances):
@@ -528,13 +636,13 @@ class NpyVisualizerApp:
             if features.ndim == 4 and features.shape[0] == 1:
                 features = features.reshape(1, -1)
             else:
-                self.insert_metadata("Error", f"Cannot visualize {feature_name} with shape {features.shape}. Expected 2D or 4D (1, C, H, W).")
+                self.insert_metadata("Error", f"Cannot visualize {feature_name} with shape {features.shape}.")
                 self.fallback_visualization(features, feature_name, labels=labels)
                 return
         n_samples, n_features = features.shape
         indices = None
         if n_samples > self.max_samples:
-            self.insert_metadata("Info", f"Downsampling {feature_name} from {n_samples} to {self.max_samples} samples for t-SNE.")
+            self.insert_metadata("Info", f"Downsampling {feature_name} from {n_samples} to {self.max_samples} samples.")
             indices = np.random.choice(n_samples, self.max_samples, replace=False)
             features = features[indices]
             labels = labels[indices] if labels is not None else None
@@ -547,7 +655,7 @@ class NpyVisualizerApp:
         features = StandardScaler().fit_transform(features)
         if n_features > 50:
             n_components = min(n_samples, n_features, 50)
-            self.insert_metadata("Info", f"Reducing {n_features} features to {n_components} with PCA for t-SNE...")
+            self.insert_metadata("Info", f"Reducing {n_features} features to {n_components} with PCA...")
             try:
                 pca = PCA(n_components=n_components, random_state=42)
                 features = pca.fit_transform(features)
@@ -572,37 +680,56 @@ class NpyVisualizerApp:
             if labels is not None:
                 labels = np.array(labels, dtype=str)
                 unique_labels = np.unique(labels)
-                if len(unique_labels) <= 100:
-                    colors = plt.cm.get_cmap('hsv')(np.linspace(0, 1, len(unique_labels)))
-                    for idx, label in enumerate(unique_labels):
-                        mask = labels == label
-                        if np.sum(mask) > 0:
-                            ax.scatter(x[mask], y[mask], z[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.3, s=60)
-                            centroid = np.mean(features_tsne[mask], axis=0)
-                            centroids.append((label, centroid))
-                            ax.scatter([centroid[0]], [centroid[1]], [centroid[2]], c=[colors[idx]], marker='X', s=200, edgecolors='black', label=f"Centroid {label}")
-                            class_points = features_tsne[mask]
-                            for point in class_points:
-                                ax.plot([point[0], centroid[0]], [point[1], centroid[1]], [point[2], centroid[2]], c=colors[idx], alpha=0.3, linewidth=0.5)
-                            distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
-                            self.distances_per_class[label] = distances
-                            distance_text.append(f"Class {label} Distance Stats:\nMean={np.mean(distances):.4f}, Min={np.min(distances):.4f}, Max={np.max(distances):.4f}")
-                    ax.legend(title=f"Classes: {len(unique_labels)}", bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
-                    self.insert_metadata("Info", f"Visualizing semantic relationships for classes: {unique_labels}")
-                    distance_str = "\n".join(sorted(distance_text, key=lambda x: x.split()[1]))
-                    ax.text2D(1.10, 0.7, distance_str, transform=ax.transAxes, fontsize=8, verticalalignment='top',
-                              bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='black'))
+                self.insert_metadata("Info", f"Found {len(unique_labels)} unique labels: {unique_labels}")
+                if len(unique_labels) > 100:
+                    self.insert_metadata("Warning", f"Excessive classes ({len(unique_labels)}). Consider reducing class count.")
+                if len(unique_labels) <= 40:
+                    cmap_tab20 = plt.cm.get_cmap('tab20')
+                    cmap_tab20b = plt.cm.get_cmap('tab20b')
+                    colors = [cmap_tab20(i / 20) for i in range(20)] + [cmap_tab20b(i / 20) for i in range(20)]
+                    colors = colors[:len(unique_labels)]
                 else:
-                    self.insert_metadata("Warning", f"Too many unique labels ({len(unique_labels)}) for {feature_name}; using single color.")
-                    ax.scatter(x, y, z, c='blue', alpha=0.7, s=60)
+                    cmap = plt.cm.get_cmap('viridis')
+                    colors = [cmap(i / len(unique_labels)) for i in range(len(unique_labels))]
+                for idx, label in enumerate(unique_labels):
+                    mask = labels == label
+                    if np.sum(mask) > 0:
+                        ax.scatter(x[mask], y[mask], z[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.5, s=80)
+                        centroid = np.mean(features_tsne[mask], axis=0)
+                        centroids.append((label, centroid))
+                        ax.scatter([centroid[0]], [centroid[1]], [centroid[2]], c=[colors[idx]], marker='X', s=200, edgecolors='black')
+                        class_points = features_tsne[mask]
+                        for point in class_points:
+                            ax.plot([point[0], centroid[0]], [point[1], centroid[1]], [point[2], centroid[2]], c=colors[idx], alpha=0.3, linewidth=0.5)
+                        distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
+                        self.distances_per_class[label] = distances
+                        mode_distance = self.compute_mode_distance(distances)
+                        distance_text.append(f"Class {label}:\nMean={np.mean(distances):.4f}\nMode={mode_distance:.4f}\nMax={np.max(distances):.4f}")
+                max_legend_classes = 20
+                if len(unique_labels) > max_legend_classes:
+                    self.insert_metadata("Info", f"Showing {max_legend_classes} classes in legend. Full class list in centroid/distance files.")
+                    handles, legend_labels = ax.get_legend_handles_labels()
+                    ax.legend(handles[:max_legend_classes*2], legend_labels[:max_legend_classes*2], title=f"Classes: {len(unique_labels)}",
+                              bbox_to_anchor=(1.01, 1), loc='upper left', borderaxespad=0., fontsize=8, ncol=2)
+                else:
+                    ax.legend(title=f"Classes: {len(unique_labels)}", bbox_to_anchor=(1.01, 1), loc='upper left',
+                              borderaxespad=0., fontsize=8, ncol=2)
+                self.insert_metadata("Info", f"Visualizing classes: {unique_labels}")
+                max_text_classes = 10
+                if len(unique_labels) > max_text_classes:
+                    self.insert_metadata("Info", f"Showing stats for {max_text_classes} classes in plot. Full stats in distance file.")
+                    distance_text = distance_text[:max_text_classes]
+                distance_str = "\n\n".join(sorted(distance_text, key=lambda x: x.split(':')[0]))
+                ax.text2D(1.01, 0.5, distance_str, transform=ax.transAxes, fontsize=7, verticalalignment='top',
+                          bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='black'))
             else:
-                ax.scatter(x, y, z, c='blue', alpha=0.7, s=60)
-            ax.set_title(f"3D t-SNE: Semantic Relationships Between Classes ({feature_name})")
+                ax.scatter(x, y, z, c='blue', alpha=0.5, s=80)
+            ax.set_title(f"3D t-SNE: Semantic Relationships ({feature_name})")
             ax.set_xlabel("t-SNE 1")
             ax.set_ylabel("t-SNE 2")
             ax.set_zlabel("t-SNE 3")
             plt.tight_layout()
-            fig.subplots_adjust(right=0.50)
+            fig.subplots_adjust(right=0.45)
             try:
                 canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
                 canvas.draw()
@@ -612,7 +739,7 @@ class NpyVisualizerApp:
                 output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
                 output_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_tsne_3d.png")
                 fig.savefig(output_file, dpi=300, bbox_inches='tight')
-                self.insert_metadata("Info", f"3D t-SNE plot showing semantic relationships saved to {output_file}")
+                self.insert_metadata("Info", f"3D t-SNE plot saved to {output_file}")
                 centroid_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_centroids_3d.txt")
                 with open(centroid_file, 'w') as f:
                     f.write("Class Centroids in 3D t-SNE Space (x, y, z):\n")
@@ -625,9 +752,10 @@ class NpyVisualizerApp:
                 with open(distance_file, 'w') as f:
                     f.write("Distances from Data Points to Centroids in 3D t-SNE Space:\n")
                     for label, distances in sorted(self.distances_per_class.items(), key=lambda x: x[0]):
+                        mode_distance = self.compute_mode_distance(distances)
                         f.write(f"\nClass {label}:\n")
                         f.write(f"  Mean Distance: {np.mean(distances):.4f}\n")
-                        f.write(f"  Min Distance: {np.min(distances):.4f}\n")
+                        f.write(f"  Mode Distance: {mode_distance:.4f}\n")
                         f.write(f"  Max Distance: {np.max(distances):.4f}\n")
                         f.write("  Individual Distances:\n")
                         for i, dist in enumerate(distances):
@@ -647,13 +775,13 @@ class NpyVisualizerApp:
             if features.ndim == 4 and features.shape[0] == 1:
                 features = features.reshape(1, -1)
             else:
-                self.insert_metadata("Error", f"Cannot visualize {feature_name} with shape {features.shape}. Expected 2D or 4D (1, C, H, W).")
+                self.insert_metadata("Error", f"Cannot visualize {feature_name} with shape {features.shape}.")
                 self.fallback_visualization(features, feature_name, labels=labels)
                 return
         n_samples, n_features = features.shape
         indices = None
         if n_samples > self.max_samples:
-            self.insert_metadata("Info", f"Downsampling {feature_name} from {n_samples} to {self.max_samples} samples for t-SNE.")
+            self.insert_metadata("Info", f"Downsampling {feature_name} from {n_samples} to {self.max_samples} samples.")
             indices = np.random.choice(n_samples, self.max_samples, replace=False)
             features = features[indices]
             labels = labels[indices] if labels is not None else None
@@ -666,7 +794,7 @@ class NpyVisualizerApp:
         features = StandardScaler().fit_transform(features)
         if n_features > 50:
             n_components = min(n_samples, n_features, 50)
-            self.insert_metadata("Info", f"Reducing {n_features} features to {n_components} with TruncatedSVD for t-SNE...")
+            self.insert_metadata("Info", f"Reducing {n_features} features to {n_components} with TruncatedSVD...")
             try:
                 svd = TruncatedSVD(n_components=n_components, random_state=42)
                 features = svd.fit_transform(features)
@@ -691,37 +819,56 @@ class NpyVisualizerApp:
             if labels is not None:
                 labels = np.array(labels, dtype=str)
                 unique_labels = np.unique(labels)
-                if len(unique_labels) <= 100:
-                    colors = plt.cm.get_cmap('hsv')(np.linspace(0, 1, len(unique_labels)))
-                    for idx, label in enumerate(unique_labels):
-                        mask = labels == label
-                        if np.sum(mask) > 0:
-                            ax.scatter(x[mask], y[mask], z[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.3, s=60)
-                            centroid = np.mean(features_tsne[mask], axis=0)
-                            centroids.append((label, centroid))
-                            ax.scatter([centroid[0]], [centroid[1]], [centroid[2]], c=[colors[idx]], marker='X', s=200, edgecolors='black', label=f"Centroid {label}")
-                            class_points = features_tsne[mask]
-                            for point in class_points:
-                                ax.plot([point[0], centroid[0]], [point[1], centroid[1]], [point[2], centroid[2]], c=colors[idx], alpha=0.3, linewidth=0.5)
-                            distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
-                            self.distances_per_class[label] = distances
-                            distance_text.append(f"Class {label} Distance Stats:\nMean={np.mean(distances):.4f}, Min={np.min(distances):.4f}, Max={np.max(distances):.4f}")
-                    ax.legend(title=f"Classes: {len(unique_labels)}", bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
-                    self.insert_metadata("Info", f"Visualizing semantic relationships for classes: {unique_labels}")
-                    distance_str = "\n".join(sorted(distance_text, key=lambda x: x.split()[1]))
-                    ax.text2D(1.10, 0.7, distance_str, transform=ax.transAxes, fontsize=8, verticalalignment='top',
-                              bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='black'))
+                self.insert_metadata("Info", f"Found {len(unique_labels)} unique labels: {unique_labels}")
+                if len(unique_labels) > 100:
+                    self.insert_metadata("Warning", f"Excessive classes ({len(unique_labels)}). Consider reducing class count.")
+                if len(unique_labels) <= 40:
+                    cmap_tab20 = plt.cm.get_cmap('tab20')
+                    cmap_tab20b = plt.cm.get_cmap('tab20b')
+                    colors = [cmap_tab20(i / 20) for i in range(20)] + [cmap_tab20b(i / 20) for i in range(20)]
+                    colors = colors[:len(unique_labels)]
                 else:
-                    self.insert_metadata("Warning", f"Too many unique labels ({len(unique_labels)}) for {feature_name}; using single color.")
-                    ax.scatter(x, y, z, c='blue', alpha=0.7, s=60)
+                    cmap = plt.cm.get_cmap('viridis')
+                    colors = [cmap(i / len(unique_labels)) for i in range(len(unique_labels))]
+                for idx, label in enumerate(unique_labels):
+                    mask = labels == label
+                    if np.sum(mask) > 0:
+                        ax.scatter(x[mask], y[mask], z[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.5, s=80)
+                        centroid = np.mean(features_tsne[mask], axis=0)
+                        centroids.append((label, centroid))
+                        ax.scatter([centroid[0]], [centroid[1]], [centroid[2]], c=[colors[idx]], marker='X', s=200, edgecolors='black')
+                        class_points = features_tsne[mask]
+                        for point in class_points:
+                            ax.plot([point[0], centroid[0]], [point[1], centroid[1]], [point[2], centroid[2]], c=colors[idx], alpha=0.3, linewidth=0.5)
+                        distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
+                        self.distances_per_class[label] = distances
+                        mode_distance = self.compute_mode_distance(distances)
+                        distance_text.append(f"Class {label}:\nMean={np.mean(distances):.4f}\nMode={mode_distance:.4f}\nMax={np.max(distances):.4f}")
+                max_legend_classes = 20
+                if len(unique_labels) > max_legend_classes:
+                    self.insert_metadata("Info", f"Showing {max_legend_classes} classes in legend. Full class list in centroid/distance files.")
+                    handles, legend_labels = ax.get_legend_handles_labels()
+                    ax.legend(handles[:max_legend_classes*2], legend_labels[:max_legend_classes*2], title=f"Classes: {len(unique_labels)}",
+                              bbox_to_anchor=(1.01, 1), loc='upper left', borderaxespad=0., fontsize=8, ncol=2)
+                else:
+                    ax.legend(title=f"Classes: {len(unique_labels)}", bbox_to_anchor=(1.01, 1), loc='upper left',
+                              borderaxespad=0., fontsize=8, ncol=2)
+                self.insert_metadata("Info", f"Visualizing classes: {unique_labels}")
+                max_text_classes = 10
+                if len(unique_labels) > max_text_classes:
+                    self.insert_metadata("Info", f"Showing stats for {max_text_classes} classes in plot. Full stats in distance file.")
+                    distance_text = distance_text[:max_text_classes]
+                distance_str = "\n\n".join(sorted(distance_text, key=lambda x: x.split(':')[0]))
+                ax.text2D(1.01, 0.5, distance_str, transform=ax.transAxes, fontsize=7, verticalalignment='top',
+                          bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='black'))
             else:
-                ax.scatter(x, y, z, c='blue', alpha=0.7, s=60)
-            ax.set_title(f"3D t-SNE: Semantic Relationships Between Classes ({feature_name})")
+                ax.scatter(x, y, z, c='blue', alpha=0.5, s=80)
+            ax.set_title(f"3D t-SNE: Semantic Relationships ({feature_name})")
             ax.set_xlabel("t-SNE 1")
             ax.set_ylabel("t-SNE 2")
             ax.set_zlabel("t-SNE 3")
             plt.tight_layout()
-            fig.subplots_adjust(right=0.50)
+            fig.subplots_adjust(right=0.45)
             try:
                 canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
                 canvas.draw()
@@ -731,7 +878,7 @@ class NpyVisualizerApp:
                 output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
                 output_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_tsne_3d_svd.png")
                 fig.savefig(output_file, dpi=300, bbox_inches='tight')
-                self.insert_metadata("Info", f"3D t-SNE plot showing semantic relationships saved to {output_file}")
+                self.insert_metadata("Info", f"3D t-SNE plot saved to {output_file}")
                 centroid_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_centroids_3d_svd.txt")
                 with open(centroid_file, 'w') as f:
                     f.write("Class Centroids in 3D t-SNE Space (TruncatedSVD) (x, y, z):\n")
@@ -744,9 +891,10 @@ class NpyVisualizerApp:
                 with open(distance_file, 'w') as f:
                     f.write("Distances from Data Points to Centroids in 3D t-SNE Space (TruncatedSVD):\n")
                     for label, distances in sorted(self.distances_per_class.items(), key=lambda x: x[0]):
+                        mode_distance = self.compute_mode_distance(distances)
                         f.write(f"\nClass {label}:\n")
                         f.write(f"  Mean Distance: {np.mean(distances):.4f}\n")
-                        f.write(f"  Min Distance: {np.min(distances):.4f}\n")
+                        f.write(f"  Mode Distance: {mode_distance:.4f}\n")
                         f.write(f"  Max Distance: {np.max(distances):.4f}\n")
                         f.write("  Individual Distances:\n")
                         for i, dist in enumerate(distances):
@@ -782,31 +930,50 @@ class NpyVisualizerApp:
                 if labels is not None:
                     labels = np.array(labels[:1000], dtype=str)
                     unique_labels = np.unique(labels)
-                    if len(unique_labels) <= 100:
-                        colors = plt.cm.get_cmap('hsv')(np.linspace(0, 1, len(unique_labels)))
-                        for idx, label in enumerate(unique_labels):
-                            mask = labels == label
-                            if np.sum(mask) > 0:
-                                ax.scatter(x[mask], y[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.7, s=60)
-                                centroid = np.mean(np.array([x[mask], y[mask]]).T, axis=0)
-                                centroids.append((label, centroid))
-                                ax.scatter([centroid[0]], [centroid[1]], c=[colors[idx]], marker='X', s=200, edgecolors='black', label=f"Centroid {label}")
-                                class_points = np.array([x[mask], y[mask]]).T
-                                for point in class_points:
-                                    ax.plot([point[0], centroid[0]], [point[1], centroid[1]], c=colors[idx], alpha=0.3, linewidth=0.5)
-                                distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
-                                self.distances_per_class[label] = distances
-                                distance_text.append(f"Class {label} Distance Stats:\nMean={np.mean(distances):.4f}, Min={np.min(distances):.4f}, Max={np.max(distances):.4f}")
-                        ax.legend(title=f"Classes: {len(unique_labels)}", fancybox=True, frameon=True, bbox_to_anchor=(1.05, 1), loc='upper left')
-                        self.insert_metadata("Info", f"Visualizing classes in fallback: {unique_labels}")
-                        distance_str = "\n".join(sorted(distance_text, key=lambda x: x.split()[1]))
-                        ax.text(1.10, 0.7, distance_str, transform=ax.transAxes, fontsize=8, verticalalignment='top',
-                                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='black'))
+                    self.insert_metadata("Info", f"Found {len(unique_labels)} unique labels in fallback: {unique_labels}")
+                    if len(unique_labels) > 100:
+                        self.insert_metadata("Warning", f"Excessive classes ({len(unique_labels)}). Consider reducing class count.")
+                    if len(unique_labels) <= 40:
+                        cmap_tab20 = plt.cm.get_cmap('tab20')
+                        cmap_tab20b = plt.cm.get_cmap('tab20b')
+                        colors = [cmap_tab20(i / 20) for i in range(20)] + [cmap_tab20b(i / 20) for i in range(20)]
+                        colors = colors[:len(unique_labels)]
                     else:
-                        self.insert_metadata("Warning", f"Too many unique labels ({len(unique_labels)}) for {arr_name}; using single color.")
-                        ax.scatter(x, y, c='blue', alpha=0.6)
+                        cmap = plt.cm.get_cmap('viridis')
+                        colors = [cmap(i / len(unique_labels)) for i in range(len(unique_labels))]
+                    for idx, label in enumerate(unique_labels):
+                        mask = labels == label
+                        if np.sum(mask) > 0:
+                            ax.scatter(x[mask], y[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.5, s=80)
+                            centroid = np.mean(np.array([x[mask], y[mask]]).T, axis=0)
+                            centroids.append((label, centroid))
+                            ax.scatter([centroid[0]], [centroid[1]], c=[colors[idx]], marker='X', s=200, edgecolors='black')
+                            class_points = np.array([x[mask], y[mask]]).T
+                            for point in class_points:
+                                ax.plot([point[0], centroid[0]], [point[1], centroid[1]], c=colors[idx], alpha=0.3, linewidth=0.5)
+                            distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
+                            self.distances_per_class[label] = distances
+                            mode_distance = self.compute_mode_distance(distances)
+                            distance_text.append(f"Class {label}:\nMean={np.mean(distances):.4f}\nMode={mode_distance:.4f}\nMax={np.max(distances):.4f}")
+                    max_legend_classes = 20
+                    if len(unique_labels) > max_legend_classes:
+                        self.insert_metadata("Info", f"Showing {max_legend_classes} classes in legend. Full class list in centroid/distance files.")
+                        handles, legend_labels = ax.get_legend_handles_labels()
+                        ax.legend(handles[:max_legend_classes*2], legend_labels[:max_legend_classes*2], title=f"Classes: {len(unique_labels)}",
+                                  bbox_to_anchor=(1.01, 1), loc='upper left', borderaxespad=0., fontsize=8, ncol=2)
+                    else:
+                        ax.legend(title=f"Classes: {len(unique_labels)}", bbox_to_anchor=(1.01, 1), loc='upper left',
+                                  borderaxespad=0., fontsize=8, ncol=2)
+                    self.insert_metadata("Info", f"Visualizing classes in fallback: {unique_labels}")
+                    max_text_classes = 10
+                    if len(unique_labels) > max_text_classes:
+                        self.insert_metadata("Info", f"Showing stats for {max_text_classes} classes in plot. Full stats in distance file.")
+                        distance_text = distance_text[:max_text_classes]
+                    distance_str = "\n\n".join(sorted(distance_text, key=lambda x: x.split(':')[0]))
+                    ax.text(1.01, 0.5, distance_str, transform=ax.transAxes, fontsize=7, verticalalignment='top',
+                            bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='black'))
                 else:
-                    ax.scatter(x, y, c='blue', alpha=0.6)
+                    ax.scatter(x, y, c='blue', alpha=0.5, s=80)
                 ax.set_title(f"First Two Features: {arr_name}")
                 ax.set_xlabel("Feature 0")
                 ax.set_ylabel("Feature 1")
@@ -822,9 +989,10 @@ class NpyVisualizerApp:
                     with open(distance_file, 'w') as f:
                         f.write("Distances from Data Points to Centroids in Fallback 2D Space:\n")
                         for label, distances in sorted(self.distances_per_class.items(), key=lambda x: x[0]):
+                            mode_distance = self.compute_mode_distance(distances)
                             f.write(f"\nClass {label}:\n")
                             f.write(f"  Mean Distance: {np.mean(distances):.4f}\n")
-                            f.write(f"  Min Distance: {np.min(distances):.4f}\n")
+                            f.write(f"  Mode Distance: {mode_distance:.4f}\n")
                             f.write(f"  Max Distance: {np.max(distances):.4f}\n")
                             f.write("  Individual Distances:\n")
                             for i, dist in enumerate(distances):
@@ -892,9 +1060,8 @@ class NpyVisualizerApp:
 
 def main(file_path=None):
     root = tk.Tk()
-    app = NpyVisualizerApp(root, file_path)
+    app = NpyVisualizerApp(root, "2D", "PCA")
     root.mainloop()
 
 if __name__ == "__main__":
     main()
-# ```
