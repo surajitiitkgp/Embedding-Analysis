@@ -14,6 +14,7 @@ try:
 except ImportError:
     GPU_AVAILABLE = False
     print("Running on CPU 💻")
+
 import importlib.util
 import sys
 import logging
