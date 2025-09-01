@@ -332,10 +332,13 @@ class NpyVisualizerApp:
                 shifted_centroids[label] = centroid
                 continue
             
-            # Use all unique distances as potential radii
+            # Compute the maximum distance for own points
+            max_own_distance = np.max(own_distances) if own_distances.size > 0 else 0.0
+            
+            # Use only distances up to max_own_distance
             all_distances = np.concatenate([own_distances, other_distances]) if other_distances.size > 0 else own_distances
             unique_distances = np.unique(all_distances)
-            unique_distances = unique_distances[unique_distances > 0]  # Exclude zero
+            unique_distances = unique_distances[(unique_distances > 0) & (unique_distances <= max_own_distance)]  # Cap at max_own_distance
             unique_distances = np.sort(unique_distances)
             
             last_valid_radius = 0.0
@@ -343,7 +346,7 @@ class NpyVisualizerApp:
             last_other_count = 0
             last_valid_centroid = centroid
             
-            # Check each unique distance
+            # Check each unique distance up to max_own_distance
             for radius in unique_distances:
                 own_count = np.sum(own_distances <= radius) if own_distances.size > 0 else 0
                 other_count = np.sum(other_distances <= radius) if other_distances.size > 0 else 0
@@ -361,10 +364,10 @@ class NpyVisualizerApp:
                         self.insert_metadata("Warning", f"Class {label}: No points within radius {radius:.4f}. Keeping original centroid.")
                         last_valid_centroid = centroid
             
-            # Fallback: If no radius satisfies own_count > other_count, use max own_distance
+            # Fallback: If no radius satisfies own_count > other_count, use max_own_distance
             if last_valid_radius == 0.0 and own_distances.size > 0:
-                self.insert_metadata("Warning", f"Class {label}: No radius where own_count > other_count. Using max own_distance.")
-                last_valid_radius = np.max(own_distances)
+                self.insert_metadata("Warning", f"Class {label}: No radius where own_count > other_count. Using max_own_distance.")
+                last_valid_radius = max_own_distance
                 last_own_count = np.sum(own_distances <= last_valid_radius) if own_distances.size > 0 else 0
                 last_other_count = np.sum(other_distances <= last_valid_radius) if other_distances.size > 0 else 0
                 within_radius_mask = own_distances <= last_valid_radius
@@ -372,7 +375,7 @@ class NpyVisualizerApp:
                 if points_within_radius.size > 0:
                     last_valid_centroid = np.mean(points_within_radius, axis=0)
                 else:
-                    self.insert_metadata("Warning", f"Class {label}: No points within max own_distance. Using original centroid.")
+                    self.insert_metadata("Warning", f"Class {label}: No points within max_own_distance. Using original centroid.")
                     last_valid_centroid = centroid
             
             max_radii[label] = last_valid_radius
@@ -382,8 +385,7 @@ class NpyVisualizerApp:
             self.insert_metadata("Info", f"Class {label}: Final radius={last_valid_radius:.4f}, own_count={last_own_count}, other_count={last_other_count}")
             self.insert_metadata("Info", f"Class {label}: Shifted centroid=({last_valid_centroid[0]:.4f}, {last_valid_centroid[1]:.4f}{', ' + f'{last_valid_centroid[2]:.4f}' if len(last_valid_centroid) == 3 else ''})")
         
-        return max_radii, point_counts, shifted_centroids
-    
+        return max_radii, point_counts, shifted_centroids    
     
     def display_radius_table(self, max_radii, point_counts, shifted_centroids, table_data, feature_name, dim, method):
         radius_window = tk.Toplevel(self.root)
