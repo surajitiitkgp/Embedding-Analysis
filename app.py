@@ -1,4 +1,3 @@
-# ```python
 import torch
 import torch.nn as nn
 import torchvision.models as models
@@ -14,13 +13,35 @@ try:
 except ImportError:
     GPU_AVAILABLE = False
     print("Running on CPU 💻")
-
 import importlib.util
 import sys
 import logging
 from pathlib import Path
 from glob import glob
-from torchvision.models import VGG16_Weights, ResNet18_Weights, AlexNet_Weights
+import torchvision.models as models
+from torchvision.models import (
+    VGG11_Weights, VGG11_BN_Weights, VGG13_Weights, VGG13_BN_Weights,
+    VGG16_Weights, VGG16_BN_Weights, VGG19_Weights, VGG19_BN_Weights,
+    ResNet18_Weights, ResNet34_Weights, ResNet50_Weights, ResNet101_Weights, ResNet152_Weights,
+    ResNeXt50_32X4D_Weights, ResNeXt101_32X8D_Weights, ResNeXt101_64X4D_Weights,
+    Wide_ResNet50_2_Weights, Wide_ResNet101_2_Weights,
+    AlexNet_Weights, DenseNet121_Weights, DenseNet161_Weights, DenseNet169_Weights, DenseNet201_Weights,
+    Inception_V3_Weights, GoogLeNet_Weights, MobileNet_V2_Weights, MobileNet_V3_Small_Weights,
+    MobileNet_V3_Large_Weights, MNASNet0_5_Weights, MNASNet0_75_Weights, MNASNet1_0_Weights,
+    MNASNet1_3_Weights, EfficientNet_B0_Weights, EfficientNet_B1_Weights, EfficientNet_B2_Weights,
+    EfficientNet_B3_Weights, EfficientNet_B4_Weights, EfficientNet_B5_Weights, EfficientNet_B6_Weights,
+    EfficientNet_B7_Weights, EfficientNet_V2_S_Weights, EfficientNet_V2_M_Weights, EfficientNet_V2_L_Weights,
+    RegNet_X_400MF_Weights, RegNet_X_800MF_Weights, RegNet_X_1_6GF_Weights, RegNet_X_3_2GF_Weights,
+    RegNet_X_8GF_Weights, RegNet_X_16GF_Weights, RegNet_X_32GF_Weights,
+    RegNet_Y_400MF_Weights, RegNet_Y_800MF_Weights, RegNet_Y_1_6GF_Weights, RegNet_Y_3_2GF_Weights,
+    RegNet_Y_8GF_Weights, RegNet_Y_16GF_Weights, RegNet_Y_32GF_Weights, RegNet_Y_128GF_Weights,
+    ViT_B_16_Weights, ViT_B_32_Weights, ViT_L_16_Weights, ViT_L_32_Weights, ViT_H_14_Weights,
+    Swin_T_Weights, Swin_S_Weights, Swin_B_Weights, Swin_V2_T_Weights, Swin_V2_S_Weights, Swin_V2_B_Weights,
+    MaxVit_T_Weights, ConvNeXt_Tiny_Weights, ConvNeXt_Small_Weights, ConvNeXt_Base_Weights,
+    ConvNeXt_Large_Weights
+)
+import torch
+
 try:
     import customtkinter as ctk
     print("Running on CustomTkinter")
@@ -50,6 +71,84 @@ npz_file_path = None
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logging.debug(f"Using device: {device}")
 
+MODELS_DICT = {
+    "VGG11": (models.vgg11, VGG11_Weights.DEFAULT),
+    "VGG11_BN": (models.vgg11_bn, VGG11_BN_Weights.DEFAULT),
+    "VGG13": (models.vgg13, VGG13_Weights.DEFAULT),
+    "VGG13_BN": (models.vgg13_bn, VGG13_BN_Weights.DEFAULT),
+    "VGG16": (models.vgg16, VGG16_Weights.DEFAULT),
+    "VGG16_BN": (models.vgg16_bn, VGG16_BN_Weights.DEFAULT),
+    "VGG19": (models.vgg19, VGG19_Weights.DEFAULT),
+    "VGG19_BN": (models.vgg19_bn, VGG19_BN_Weights.DEFAULT),
+    "ResNet18": (models.resnet18, ResNet18_Weights.DEFAULT),
+    "ResNet34": (models.resnet34, ResNet34_Weights.DEFAULT),
+    "ResNet50": (models.resnet50, ResNet50_Weights.DEFAULT),
+    "ResNet101": (models.resnet101, ResNet101_Weights.DEFAULT),
+    "ResNet152": (models.resnet152, ResNet152_Weights.DEFAULT),
+    "ResNeXt50_32x4d": (models.resnext50_32x4d, ResNeXt50_32X4D_Weights.DEFAULT),
+    "ResNeXt101_32x8d": (models.resnext101_32x8d, ResNeXt101_32X8D_Weights.DEFAULT),
+    "ResNeXt101_64x4d": (models.resnext101_64x4d, ResNeXt101_64X4D_Weights.DEFAULT),
+    "Wide_ResNet50_2": (models.wide_resnet50_2, Wide_ResNet50_2_Weights.DEFAULT),
+    "Wide_ResNet101_2": (models.wide_resnet101_2, Wide_ResNet101_2_Weights.DEFAULT),
+    "AlexNet": (models.alexnet, AlexNet_Weights.DEFAULT),
+    "DenseNet121": (models.densenet121, DenseNet121_Weights.DEFAULT),
+    "DenseNet161": (models.densenet161, DenseNet161_Weights.DEFAULT),
+    "DenseNet169": (models.densenet169, DenseNet169_Weights.DEFAULT),
+    "DenseNet201": (models.densenet201, DenseNet201_Weights.DEFAULT),
+    "Inception_V3": (models.inception_v3, Inception_V3_Weights.DEFAULT),
+    "GoogLeNet": (models.googlenet, GoogLeNet_Weights.DEFAULT),
+    "MobileNet_V2": (models.mobilenet_v2, MobileNet_V2_Weights.DEFAULT),
+    "MobileNet_V3_Small": (models.mobilenet_v3_small, MobileNet_V3_Small_Weights.DEFAULT),
+    "MobileNet_V3_Large": (models.mobilenet_v3_large, MobileNet_V3_Large_Weights.DEFAULT),
+    "MNASNet0_5": (models.mnasnet0_5, MNASNet0_5_Weights.DEFAULT),
+    "MNASNet0_75": (models.mnasnet0_75, MNASNet0_75_Weights.DEFAULT),
+    "MNASNet1_0": (models.mnasnet1_0, MNASNet1_0_Weights.DEFAULT),
+    "MNASNet1_3": (models.mnasnet1_3, MNASNet1_3_Weights.DEFAULT),
+    "EfficientNet_B0": (models.efficientnet_b0, EfficientNet_B0_Weights.DEFAULT),
+    "EfficientNet_B1": (models.efficientnet_b1, EfficientNet_B1_Weights.DEFAULT),
+    "EfficientNet_B2": (models.efficientnet_b2, EfficientNet_B2_Weights.DEFAULT),
+    "EfficientNet_B3": (models.efficientnet_b3, EfficientNet_B3_Weights.DEFAULT),
+    "EfficientNet_B4": (models.efficientnet_b4, EfficientNet_B4_Weights.DEFAULT),
+    "EfficientNet_B5": (models.efficientnet_b5, EfficientNet_B5_Weights.DEFAULT),
+    "EfficientNet_B6": (models.efficientnet_b6, EfficientNet_B6_Weights.DEFAULT),
+    "EfficientNet_B7": (models.efficientnet_b7, EfficientNet_B7_Weights.DEFAULT),
+    "EfficientNet_V2_S": (models.efficientnet_v2_s, EfficientNet_V2_S_Weights.DEFAULT),
+    "EfficientNet_V2_M": (models.efficientnet_v2_m, EfficientNet_V2_M_Weights.DEFAULT),
+    "EfficientNet_V2_L": (models.efficientnet_v2_l, EfficientNet_V2_L_Weights.DEFAULT),
+    "RegNet_X_400MF": (models.regnet_x_400mf, RegNet_X_400MF_Weights.DEFAULT),
+    "RegNet_X_800MF": (models.regnet_x_800mf, RegNet_X_800MF_Weights.DEFAULT),
+    "RegNet_X_1_6GF": (models.regnet_x_1_6gf, RegNet_X_1_6GF_Weights.DEFAULT),
+    "RegNet_X_3_2GF": (models.regnet_x_3_2gf, RegNet_X_3_2GF_Weights.DEFAULT),
+    "RegNet_X_8GF": (models.regnet_x_8gf, RegNet_X_8GF_Weights.DEFAULT),
+    "RegNet_X_16GF": (models.regnet_x_16gf, RegNet_X_16GF_Weights.DEFAULT),
+    "RegNet_X_32GF": (models.regnet_x_32gf, RegNet_X_32GF_Weights.DEFAULT),
+    "RegNet_Y_400MF": (models.regnet_y_400mf, RegNet_Y_400MF_Weights.DEFAULT),
+    "RegNet_Y_800MF": (models.regnet_y_800mf, RegNet_Y_800MF_Weights.DEFAULT),
+    "RegNet_Y_1_6GF": (models.regnet_y_1_6gf, RegNet_Y_1_6GF_Weights.DEFAULT),
+    "RegNet_Y_3_2GF": (models.regnet_y_3_2gf, RegNet_Y_3_2GF_Weights.DEFAULT),
+    "RegNet_Y_8GF": (models.regnet_y_8gf, RegNet_Y_8GF_Weights.DEFAULT),
+    "RegNet_Y_16GF": (models.regnet_y_16gf, RegNet_Y_16GF_Weights.DEFAULT),
+    "RegNet_Y_32GF": (models.regnet_y_32gf, RegNet_Y_32GF_Weights.DEFAULT),
+    "RegNet_Y_128GF": (models.regnet_y_128gf, RegNet_Y_128GF_Weights.DEFAULT),
+    "ViT_B_16": (models.vit_b_16, ViT_B_16_Weights.DEFAULT),
+    "ViT_B_32": (models.vit_b_32, ViT_B_32_Weights.DEFAULT),
+    "ViT_L_16": (models.vit_l_16, ViT_L_16_Weights.DEFAULT),
+    "ViT_L_32": (models.vit_l_32, ViT_L_32_Weights.DEFAULT),
+    "ViT_H_14": (models.vit_h_14, ViT_H_14_Weights.DEFAULT),
+    "Swin_T": (models.swin_t, Swin_T_Weights.DEFAULT),
+    "Swin_S": (models.swin_s, Swin_S_Weights.DEFAULT),
+    "Swin_B": (models.swin_b, Swin_B_Weights.DEFAULT),
+    "Swin_V2_T": (models.swin_v2_t, Swin_V2_T_Weights.DEFAULT),
+    "Swin_V2_S": (models.swin_v2_s, Swin_V2_S_Weights.DEFAULT),
+    "Swin_V2_B": (models.swin_v2_b, Swin_V2_B_Weights.DEFAULT),
+    "MaxVit_T": (models.maxvit_t, MaxVit_T_Weights.DEFAULT),
+    "ConvNeXt_Tiny": (models.convnext_tiny, ConvNeXt_Tiny_Weights.DEFAULT),
+    "ConvNeXt_Small": (models.convnext_small, ConvNeXt_Small_Weights.DEFAULT),
+    "ConvNeXt_Base": (models.convnext_base, ConvNeXt_Base_Weights.DEFAULT),
+    "ConvNeXt_Large": (models.convnext_large, ConvNeXt_Large_Weights.DEFAULT),
+}
+
+
 def to_device(tensor):
     """Move tensor to the appropriate device (GPU/CPU)."""
     return tensor.to(device)
@@ -62,23 +161,22 @@ def to_cpu(arr):
     """Transfer array to CPU for NumPy operations."""
     return cp.asnumpy(arr) if GPU_AVAILABLE and isinstance(arr, cp.ndarray) else np.asarray(arr)
 
-def get_model(model_name, download_weights):
-    """Load pretrained model with optional weights."""
-    models_dict = {
-        "VGG16": (models.vgg16, VGG16_Weights.DEFAULT),
-        "ResNet18": (models.resnet18, ResNet18_Weights.DEFAULT),
-        "AlexNet": (models.alexnet, AlexNet_Weights.DEFAULT)
-    }
-    if model_name not in models_dict:
-        raise ValueError(f"Unknown model: {model_name}")
-    model_fn, weights = models_dict[model_name]
+def get_model(model_name, download_weights, device="cuda" if torch.cuda.is_available() else "cpu"):
+    """Load a pretrained model from torchvision.models with optional weights."""
+    if model_name not in MODELS_DICT:
+        raise ValueError(f"Unknown model: {model_name}. Available models: {list(MODELS_DICT.keys())}")
+    
+    model_fn, weights = MODELS_DICT[model_name]
     model = model_fn(weights=weights if download_weights else None)
     return model.to(device)
+
+    
+
 
 def ask_download_weights():
     """Prompt user to download pretrained weights."""
     while True:
-        ans = input("Download pretrained weights for VGG16, ResNet18, AlexNet? (yes/no): ").strip().lower()
+        ans = input("Download pretrained weights for the models? (yes/no): ").strip().lower()
         if ans in ['yes', 'y']:
             return True
         elif ans in ['no', 'n']:
@@ -86,9 +184,8 @@ def ask_download_weights():
         print("Please enter 'yes' or 'no'.")
 
 download_weights = ask_download_weights()
-PRETRAINED_MODELS = {
-    name: get_model(name, download_weights) for name in ["VGG16", "ResNet18", "AlexNet"]
-}
+# Initialize only selected models to save memory; dropdown will handle loading
+PRETRAINED_MODELS = {}  # We'll load models on-demand when selected from dropdown
 
 def preprocess_image(image_path, transform_choice, mode_value, target_size, use_rgb):
     """Preprocess image based on mode and transformation choice."""
@@ -305,6 +402,9 @@ def show_model_architecture():
 def select_pretrained_model(name):
     """Select a pretrained model."""
     global selected_model, selected_model_name, npz_file_path
+    # Load model on-demand if not already loaded
+    if name not in PRETRAINED_MODELS:
+        PRETRAINED_MODELS[name] = get_model(name, download_weights)
     selected_model = PRETRAINED_MODELS[name]
     selected_model.eval()
     selected_model_name = name
@@ -312,6 +412,7 @@ def select_pretrained_model(name):
     logging.debug(f"Selected pretrained model: {name}")
     compute_layer_shapes()
     messagebox.showinfo("Model Selected", f"Loaded pretrained model: {name}")
+
 
 def show_model_file_contents(file_path):
     """Display contents of a model definition file."""
@@ -453,7 +554,7 @@ def run_visualisation():
         logging.debug(f"Launching NpyVisualizerApp with: {npz_file_path}")
         viz_window = ctk.CTkToplevel(root) if ctk else tk.Toplevel(root)
         viz_window.title("CNN Embedding Analysis")
-        app = NpyVisualizerApp(viz_window, dim_var.get(), algo_var.get(), dis_var.get() ,npz_file_path)
+        app = NpyVisualizerApp(viz_window, dim_var.get(), algo_var.get(), dis_var.get(), npz_file_path)
     except Exception as e:
         logging.error(f"Failed to launch visualization: {e}")
         messagebox.showerror("Error", f"Failed to launch visualization: {str(e)}")
@@ -471,7 +572,7 @@ def main_screen():
         style.configure("TLabel", font=("Segoe UI", 10), background="#f7f9fc")
         style.configure("TButton", font=("Segoe UI", 10), padding=6)
         style.configure("TCheckbutton", font=("Segoe UI", 10))
-        style.configure("TCombobox", padding=6)
+        style.configure("TCombobox", font=("Segoe UI", 10), padding=6)
         style.configure("Modern.TLabelframe", background="#ffffff", borderwidth=1, relief="solid")
         style.configure("Modern.TLabelframe.Label", background="#ffffff", font=("Segoe UI", 11, "bold"))
 
@@ -493,9 +594,18 @@ def main_screen():
         for widget in model_frame.winfo_children():
             widget.destroy()
         if mode.get() == "Pretrained":
-            for name in PRETRAINED_MODELS:
-                (ctk.CTkButton(model_frame, text=name, command=lambda n=name: select_pretrained_model(n)) if ctk else
-                 ttk.Button(model_frame, text=name, command=lambda n=name: select_pretrained_model(n))).pack(pady=4, fill="x")
+            # Create dropdown for pretrained models
+            (ctk.CTkLabel(model_frame, text="Select Pretrained Model:") if ctk else
+             ttk.Label(model_frame, text="Select Pretrained Model:")).pack(pady=(10, 3))
+            model_var = ctk.StringVar(value="Select a model") if ctk else tk.StringVar(value="Select a model")
+            model_names = sorted(MODELS_DICT.keys())  # Sort for better UX
+            (ctk.CTkOptionMenu(model_frame, variable=model_var, values=["Select a model"] + model_names,
+                               command=lambda name: select_pretrained_model(name) if name != "Select a model" else None) if ctk else
+             ttk.Combobox(model_frame, textvariable=model_var, values=["Select a model"] + model_names,
+                          state="readonly")).pack(pady=5, padx=20, fill="x")
+            if not ctk:
+                model_frame.children["!combobox"].bind("<<ComboboxSelected>>",
+                    lambda e: select_pretrained_model(model_var.get()) if model_var.get() != "Select a model" else None)
         else:
             (ctk.CTkButton(model_frame, text="Select Model Definition (.py)", command=select_model_file) if ctk else
              ttk.Button(model_frame, text="Select Model Definition (.py)", command=select_model_file)).pack(pady=5, fill="x")
@@ -545,6 +655,6 @@ def main_screen():
 
     root.mainloop()
 
+
 if __name__ == "__main__":
     main_screen()
-# ```

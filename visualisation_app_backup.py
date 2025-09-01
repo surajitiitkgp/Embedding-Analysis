@@ -1,3 +1,4 @@
+# ```python
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -21,7 +22,7 @@ logging.basicConfig(filename="app.log", level=logging.DEBUG, format="%(asctime)s
 warnings.simplefilter("ignore", category=UserWarning)
 
 class NpyVisualizerApp:
-    def __init__(self, root, dim_options, algo_options, dis_opt,file_path=None):
+    def __init__(self, root, dim_options, algo_options, dis_opt, file_path=None):
         self.root = root
         self.root.title("CNN Embedding Analysis for Semantic Relationships")
         self.root.geometry("1200x800")
@@ -122,7 +123,7 @@ class NpyVisualizerApp:
                         labels.append(processed_data['labels'])
                     else:
                         self.insert_metadata("Warning", f"Skipping {fname}: expected 4D array with batch=1 or 1D array, got shape {data.shape}")
-                        logging.warningf("Skipped {fname}: invalid shape")
+                        logging.warning(f"Skipped {fname}: invalid shape")
             if features:
                 try:
                     self.data = {'features': np.vstack(features)}
@@ -153,7 +154,7 @@ class NpyVisualizerApp:
                 self.insert_metadata("Error", "No valid .npy files found in folder!")
                 logging.error("No valid .npy files in folder")
         except Exception as e:
-            self.insert_error(f"Error loading personally: {e}")
+            self.insert_error(f"Error loading folder: {e}")
             logging.error(f"Error loading folder: {e}")
 
     def load_npz(self, auto=False):
@@ -303,6 +304,93 @@ class NpyVisualizerApp:
         mode_distance = (bin_edges[mode_idx] + bin_edges[mode_idx + 1]) / 2
         return mode_distance
 
+    def compute_max_radius(self, features_tsne, labels, centroids, unique_labels):
+        max_radii = {}
+        point_counts = {}
+        for idx, (label, centroid) in enumerate(centroids):
+            own_mask = labels == label
+            other_mask = labels != label
+            own_points = features_tsne[own_mask]
+            other_points = features_tsne[other_mask]
+            own_distances = np.sqrt(np.sum((own_points - centroid) ** 2, axis=1)) if own_points.size > 0 else np.array([])
+            other_distances = np.sqrt(np.sum((other_points - centroid) ** 2, axis=1)) if other_points.size > 0 else np.array([])
+            
+            self.insert_metadata("Debug", f"Class {label}: {own_points.shape[0]} own points, {other_points.shape[0]} other points")
+            
+            if own_distances.size == 0:
+                self.insert_metadata("Warning", f"Class {label}: No own points. Setting radius to 0.")
+                max_radii[label] = 0.0
+                point_counts[label] = (0, 0)
+                continue
+            
+            # Calculate maximum possible distance
+            max_distance = max(np.max(own_distances) if own_distances.size > 0 else 0, 
+                            np.max(other_distances) if other_distances.size > 0 else 0)
+            if max_distance == 0:
+                self.insert_metadata("Warning", f"Class {label}: No valid distances. Setting radius to 0.")
+                max_radii[label] = 0.0
+                point_counts[label] = (0, 0)
+                continue
+            
+            # Use all unique distances as potential radii
+            all_distances = np.concatenate([own_distances, other_distances]) if other_distances.size > 0 else own_distances
+            unique_distances = np.unique(all_distances)
+            unique_distances = unique_distances[unique_distances > 0]  # Exclude zero
+            unique_distances = np.sort(unique_distances)
+            
+            last_valid_radius = 0.0
+            last_own_count = 0
+            last_other_count = 0
+            
+            # Check each unique distance
+            for radius in unique_distances:
+                own_count = np.sum(own_distances <= radius) if own_distances.size > 0 else 0
+                other_count = np.sum(other_distances <= radius) if other_distances.size > 0 else 0
+                self.insert_metadata("Debug", f"Class {label}, Radius {radius:.4f}: own_count={own_count}, other_count={other_count}")
+                if own_count > other_count:
+                    last_valid_radius = radius
+                    last_own_count = own_count
+                    last_other_count = other_count
+            
+            # Fallback: If no radius satisfies own_count > other_count, use max own_distance
+            if last_valid_radius == 0.0 and own_distances.size > 0:
+                self.insert_metadata("Warning", f"Class {label}: No radius where own_count > other_count. Using max own_distance.")
+                last_valid_radius = np.max(own_distances)
+                last_own_count = np.sum(own_distances <= last_valid_radius) if own_distances.size > 0 else 0
+                last_other_count = np.sum(other_distances <= last_valid_radius) if other_distances.size > 0 else 0
+            
+            max_radii[label] = last_valid_radius
+            point_counts[label] = (last_own_count, last_other_count)
+            self.insert_metadata("Info", f"Class {label}: Final radius={last_valid_radius:.4f}, own_count={last_own_count}, other_count={last_other_count}")
+        
+        return max_radii, point_counts
+    
+
+    
+    def display_radius_table(self, max_radii, point_counts, feature_name, dim, method):
+        radius_window = tk.Toplevel(self.root)
+        radius_window.title(f"Centroid Radius Analysis: {feature_name} ({method} {dim})")
+        radius_window.geometry("600x400")
+        radius_frame = tk.Frame(radius_window)
+        radius_frame.pack(fill="both", expand=True)
+        columns = ["Class", "Max Radius", "Own Points", "Other Points"]
+        tree = ttk.Treeview(radius_frame, columns=columns, show="headings")
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=100)
+        for label in sorted(max_radii.keys()):
+            own_count, other_count = point_counts[label]
+            tree.insert("", tk.END, values=[f"Class {label}", f"{max_radii[label]:.4f}", own_count, other_count])
+        tree.pack(fill="both", expand=True)
+        output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
+        radius_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_radius_{method.lower()}_{dim.lower()}.csv")
+        with open(radius_file, 'w') as f:
+            f.write("Class,Max Radius,Own Points,Other Points\n")
+            for label in sorted(max_radii.keys()):
+                own_count, other_count = point_counts[label]
+                f.write(f"\"Class {label}\",{max_radii[label]:.4f},{own_count},{other_count}\n")
+        self.insert_metadata("Info", f"Centroid radius table saved to {radius_file}")
+
     def clear_plot_frame(self):
         for widget in self.plot_frame.winfo_children():
             widget.destroy()
@@ -315,6 +403,7 @@ class NpyVisualizerApp:
         return self.labels, 'labels' if self.labels is not None else (None, None)
 
     def visualize_featuresPCA(self, features, labels=None, feature_name="Features", labels_name=None):
+        from matplotlib.patches import Circle
         if not self.is_feature_array(features):
             if features.ndim == 4 and features.shape[0] == 1:
                 features = features.reshape(1, -1)
@@ -385,12 +474,33 @@ class NpyVisualizerApp:
                         distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
                         self.distances_per_class[label] = distances
                         mode_distance = self.compute_mode_distance(distances)
+                        own_count = np.sum(distances <= np.max(distances)) if distances.size > 0 else 0
+                        other_mask = labels != label
+                        other_points = features_tsne[other_mask]
+                        other_distances = np.sqrt(np.sum((other_points - centroid) ** 2, axis=1)) if other_points.size > 0 else np.array([])
+                        other_count = np.sum(other_distances <= np.max(distances)) if other_distances.size > 0 else 0
                         table_data.append([f"Class {label}", f"{np.mean(distances):.4f}", f"{mode_distance:.4f}", f"{np.max(distances):.4f}"])
+                max_radii, point_counts = self.compute_max_radius(features_tsne, labels, centroids, unique_labels)
+                self.insert_metadata("Info", "Attempting to display radius table...")
+                radius_window = tk.Toplevel(self.root)
+                radius_window.title(f"Centroid Radius Analysis: {feature_name} (PCA 2D)")
+                radius_window.geometry("600x400")
+                radius_window.lift()
+                self.display_radius_table(max_radii, point_counts, feature_name, "2D", "PCA")
+                # Add circles around centroids
+                for label, centroid in centroids:
+                    radius = max_radii.get(label, 0.0)
+                    if radius > 0:
+                        circle = Circle(centroid, radius, color=colors[unique_labels.tolist().index(label)], 
+                                        fill=False, linestyle='--', alpha=0.7)
+                        ax.add_patch(circle)
+                # Optional: Uncomment for circular appearance
+                # ax.set_aspect('equal')
                 max_legend_classes = 20
                 if len(unique_labels) > max_legend_classes:
                     self.insert_metadata("Info", f"Showing {max_legend_classes} classes in legend. Full class list in centroid/distance files.")
                     handles, legend_labels = ax.get_legend_handles_labels()
-                    ax.legend(handles[:max_legend_classes*2], legend_labels[:max_legend_classes*2], title=f"Classes: {len(unique_labels)}",
+                    ax.legend(handles[:max_legend_classes], legend_labels[:max_legend_classes], title=f"Classes: {len(unique_labels)}",
                             bbox_to_anchor=(1.1, 1), loc='upper left', borderaxespad=0., fontsize=8, ncol=4)
                 else:
                     ax.legend(title=f"Classes: {len(unique_labels)}", bbox_to_anchor=(1.1, 1), loc='upper left',
@@ -401,11 +511,12 @@ class NpyVisualizerApp:
                     self.insert_metadata("Info", f"Showing stats for {max_table_classes} classes in table. Full stats in distance file.")
                     table_data = table_data[:max_table_classes]
                 if table_data:
-                    table_columns = ["Class", "Mean Distance", "Mode Distance", "Max Distance"]
+                    table_columns = ["Class", "Mean Dist", "Mode Dist", "Max Dist"]
                     table = ax.table(cellText=table_data, colLabels=table_columns, bbox=[1.1, 0.0, 0.7, 0.5], loc='right')
                     table.auto_set_font_size(False)
                     table.set_fontsize(7)
                     table.scale(1, 1.5)
+                    self.insert_metadata("Info", "In-plot table with own and other points displayed.")
             else:
                 ax.scatter(x, y, c='blue', alpha=0.5, s=80)
             ax.set_title(f"2D t-SNE: Semantic Relationships ({feature_name})")
@@ -421,9 +532,9 @@ class NpyVisualizerApp:
                 toolbar = NavigationToolbar2Tk(canvas, self.plot_frame)
                 toolbar.update()
                 output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
-                output_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_tsne_2d.png")
+                output_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_tsne_2d_pca.png")
                 fig.savefig(output_file, dpi=300, bbox_inches='tight')
-                self.insert_metadata("Info", f"2D t-SNE plot saved to {output_file}")
+                self.insert_metadata("Info", f"2D t-SNE plot with centroid circles saved to {output_file}")
                 centroid_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_centroids_2d.txt")
                 with open(centroid_file, 'w') as f:
                     f.write("Class Centroids in 2D t-SNE Space (x, y):\n")
@@ -434,16 +545,17 @@ class NpyVisualizerApp:
                     self.insert_metadata("Info", f"Centroid for Class {label}: ({centroid[0]:.4f}, {centroid[1]:.4f})")
                 distance_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_distances_2d.csv")
                 with open(distance_file, 'w') as f:
-                    f.write("Class,Mean Distance,Mode Distance,Max Distance,Individual Distances\n")
-                    for label, distances in sorted(self.distances_per_class.items(), key=lambda x: x[0]):
+                    f.write("Class,Mean Distance,Mode Distance,Max Distance,Own Points,Other Points\n")
+                    for idx, data in enumerate(table_data):
+                        label = data[0].replace("Class ", "")
+                        distances = self.distances_per_class.get(label, np.array([]))
                         mode_distance = self.compute_mode_distance(distances)
-                        f.write(f"\"Class {label}\",{np.mean(distances):.4f},{mode_distance:.4f},{np.max(distances):.4f},\"{';'.join([f'{d:.4f}' for d in distances])}\"\n")
-                self.insert_metadata("Info", f"Distances saved to {distance_file}")
+                        f.write(f"\"Class {label}\",{data[1]},{data[2]},{data[3]},{data[4]},{data[5]},\"{';'.join([f'{d:.4f}' for d in distances])}\"\n")
+                self.insert_metadata("Info", f"Distances and point counts saved to {distance_file}")
             except Exception as e:
                 self.insert_error(f"Failed to render 2D t-SNE plot for {feature_name}: {e}")
             self.insert_metadata("Success", f"2D t-SNE completed for {feature_name}. Closer points indicate similarity.")
             plt.close(fig)
-            # Move heatmap to a separate window if centroids exist
             if len(centroids) > 1:
                 centroid_array = np.array([c[1] for c in centroids])
                 centroid_labels = [c[0] for c in centroids]
@@ -451,6 +563,7 @@ class NpyVisualizerApp:
                 heatmap_window = tk.Toplevel(self.root)
                 heatmap_window.title(f"Inter-Centroid Distances: {feature_name} (PCA 2D)")
                 heatmap_window.geometry("800x600")
+                heatmap_window.lift()
                 heatmap_frame = tk.Frame(heatmap_window)
                 heatmap_frame.pack(fill="both", expand=True)
                 heatmap_fig, heatmap_ax = plt.subplots(figsize=(max(6, len(centroid_labels)), max(6, len(centroid_labels))))
@@ -471,7 +584,9 @@ class NpyVisualizerApp:
             plt.close('all')
             self.fallback_visualization(features, feature_name, labels=labels)
 
+            
     def visualize_featuresTruncatedSVD(self, features, labels=None, feature_name="Features", labels_name=None):
+        from matplotlib.patches import Circle
         if not self.is_feature_array(features):
             if features.ndim == 4 and features.shape[0] == 1:
                 features = features.reshape(1, -1)
@@ -495,12 +610,12 @@ class NpyVisualizerApp:
         features = StandardScaler().fit_transform(features)
         if n_features > 50:
             n_components = min(n_samples, n_features, 50)
-            self.insert_metadata("Info", f"Reducing {n_features} features to {n_components} with TruncatedSVD...")
+            self.insert_metadata("Info", f"Reducing {n_features} features to {n_components} with SVD...")
             try:
                 pca = TruncatedSVD(n_components=n_components, random_state=42)
                 features = pca.fit_transform(features)
             except ValueError as e:
-                self.insert_error(f"TruncatedSVD failed for {feature_name}: {e}")
+                self.insert_error(f"PCA failed for {feature_name}: {e}")
                 self.fallback_visualization(features, feature_name, labels=labels)
                 return
         perplexity = min(5, n_samples - 1) if n_samples < 50 else min(30, n_samples - 1)
@@ -542,12 +657,33 @@ class NpyVisualizerApp:
                         distances = np.sqrt(np.sum((class_points - centroid) ** 2, axis=1))
                         self.distances_per_class[label] = distances
                         mode_distance = self.compute_mode_distance(distances)
+                        own_count = np.sum(distances <= np.max(distances)) if distances.size > 0 else 0
+                        other_mask = labels != label
+                        other_points = features_tsne[other_mask]
+                        other_distances = np.sqrt(np.sum((other_points - centroid) ** 2, axis=1)) if other_points.size > 0 else np.array([])
+                        other_count = np.sum(other_distances <= np.max(distances)) if other_distances.size > 0 else 0
                         table_data.append([f"Class {label}", f"{np.mean(distances):.4f}", f"{mode_distance:.4f}", f"{np.max(distances):.4f}"])
+                max_radii, point_counts = self.compute_max_radius(features_tsne, labels, centroids, unique_labels)
+                self.insert_metadata("Info", "Attempting to display radius table...")
+                radius_window = tk.Toplevel(self.root)
+                radius_window.title(f"Centroid Radius Analysis: {feature_name} (PCA 2D)")
+                radius_window.geometry("600x400")
+                radius_window.lift()
+                self.display_radius_table(max_radii, point_counts, feature_name, "2D", "PCA")
+                # Add circles around centroids
+                for label, centroid in centroids:
+                    radius = max_radii.get(label, 0.0)
+                    if radius > 0:
+                        circle = Circle(centroid, radius, color=colors[unique_labels.tolist().index(label)], 
+                                        fill=False, linestyle='--', alpha=0.7)
+                        ax.add_patch(circle)
+                # Optional: Uncomment for circular appearance
+                # ax.set_aspect('equal')
                 max_legend_classes = 20
                 if len(unique_labels) > max_legend_classes:
                     self.insert_metadata("Info", f"Showing {max_legend_classes} classes in legend. Full class list in centroid/distance files.")
                     handles, legend_labels = ax.get_legend_handles_labels()
-                    ax.legend(handles[:max_legend_classes*2], legend_labels[:max_legend_classes*2], title=f"Classes: {len(unique_labels)}",
+                    ax.legend(handles[:max_legend_classes], legend_labels[:max_legend_classes], title=f"Classes: {len(unique_labels)}",
                             bbox_to_anchor=(1.1, 1), loc='upper left', borderaxespad=0., fontsize=8, ncol=4)
                 else:
                     ax.legend(title=f"Classes: {len(unique_labels)}", bbox_to_anchor=(1.1, 1), loc='upper left',
@@ -558,11 +694,12 @@ class NpyVisualizerApp:
                     self.insert_metadata("Info", f"Showing stats for {max_table_classes} classes in table. Full stats in distance file.")
                     table_data = table_data[:max_table_classes]
                 if table_data:
-                    table_columns = ["Class", "Mean Distance", "Mode Distance", "Max Distance"]
+                    table_columns = ["Class", "Mean Dist", "Mode Dist", "Max Dist"]
                     table = ax.table(cellText=table_data, colLabels=table_columns, bbox=[1.1, 0.0, 0.7, 0.5], loc='right')
                     table.auto_set_font_size(False)
                     table.set_fontsize(7)
                     table.scale(1, 1.5)
+                    self.insert_metadata("Info", "In-plot table with own and other points displayed.")
             else:
                 ax.scatter(x, y, c='blue', alpha=0.5, s=80)
             ax.set_title(f"2D t-SNE: Semantic Relationships ({feature_name})")
@@ -578,9 +715,9 @@ class NpyVisualizerApp:
                 toolbar = NavigationToolbar2Tk(canvas, self.plot_frame)
                 toolbar.update()
                 output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
-                output_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_tsne_2d.png")
+                output_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_tsne_2d_svd.png")
                 fig.savefig(output_file, dpi=300, bbox_inches='tight')
-                self.insert_metadata("Info", f"2D t-SNE plot saved to {output_file}")
+                self.insert_metadata("Info", f"2D t-SNE plot with centroid circles saved to {output_file}")
                 centroid_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_centroids_2d.txt")
                 with open(centroid_file, 'w') as f:
                     f.write("Class Centroids in 2D t-SNE Space (x, y):\n")
@@ -591,16 +728,17 @@ class NpyVisualizerApp:
                     self.insert_metadata("Info", f"Centroid for Class {label}: ({centroid[0]:.4f}, {centroid[1]:.4f})")
                 distance_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_distances_2d.csv")
                 with open(distance_file, 'w') as f:
-                    f.write("Class,Mean Distance,Mode Distance,Max Distance,Individual Distances\n")
-                    for label, distances in sorted(self.distances_per_class.items(), key=lambda x: x[0]):
+                    f.write("Class,Mean Distance,Mode Distance,Max Distance,Own Points,Other Points\n")
+                    for idx, data in enumerate(table_data):
+                        label = data[0].replace("Class ", "")
+                        distances = self.distances_per_class.get(label, np.array([]))
                         mode_distance = self.compute_mode_distance(distances)
-                        f.write(f"\"Class {label}\",{np.mean(distances):.4f},{mode_distance:.4f},{np.max(distances):.4f},\"{';'.join([f'{d:.4f}' for d in distances])}\"\n")
-                self.insert_metadata("Info", f"Distances saved to {distance_file}")
+                        f.write(f"\"Class {label}\",{data[1]},{data[2]},{data[3]},{data[4]},{data[5]},\"{';'.join([f'{d:.4f}' for d in distances])}\"\n")
+                self.insert_metadata("Info", f"Distances and point counts saved to {distance_file}")
             except Exception as e:
                 self.insert_error(f"Failed to render 2D t-SNE plot for {feature_name}: {e}")
             self.insert_metadata("Success", f"2D t-SNE completed for {feature_name}. Closer points indicate similarity.")
             plt.close(fig)
-            # Move heatmap to a separate window if centroids exist
             if len(centroids) > 1:
                 centroid_array = np.array([c[1] for c in centroids])
                 centroid_labels = [c[0] for c in centroids]
@@ -608,12 +746,13 @@ class NpyVisualizerApp:
                 heatmap_window = tk.Toplevel(self.root)
                 heatmap_window.title(f"Inter-Centroid Distances: {feature_name} (SVD 2D)")
                 heatmap_window.geometry("800x600")
+                heatmap_window.lift()
                 heatmap_frame = tk.Frame(heatmap_window)
                 heatmap_frame.pack(fill="both", expand=True)
                 heatmap_fig, heatmap_ax = plt.subplots(figsize=(max(6, len(centroid_labels)), max(6, len(centroid_labels))))
                 sns.heatmap(dist_matrix, annot=True, fmt='.2f', xticklabels=centroid_labels, yticklabels=centroid_labels,
                             cmap=plt.colormaps['viridis'], cbar_kws={'label': f'{self.distance_metric.get().capitalize()} Distance'}, ax=heatmap_ax)
-                heatmap_ax.set_title(f"Inter-Centroid Distances: {feature_name} (SVD 2D)")
+                heatmap_ax.set_title(f"Inter-Centroid Distances: {feature_name} (PCA 2D)")
                 plt.tight_layout()
                 heatmap_canvas = FigureCanvasTkAgg(heatmap_fig, master=heatmap_frame)
                 heatmap_canvas.draw()
@@ -627,6 +766,8 @@ class NpyVisualizerApp:
             self.insert_error(f"2D t-SNE failed for {feature_name}: {e}")
             plt.close('all')
             self.fallback_visualization(features, feature_name, labels=labels)
+
+
 
     def visualize_featuresPCA3D(self, features, labels=None, feature_name="Features", labels_name=None):
         if not self.is_feature_array(features):
@@ -702,6 +843,8 @@ class NpyVisualizerApp:
                         self.distances_per_class[label] = distances
                         mode_distance = self.compute_mode_distance(distances)
                         table_data.append([f"Class {label}", f"{np.mean(distances):.4f}", f"{mode_distance:.4f}", f"{np.max(distances):.4f}"])
+                max_radii, point_counts = self.compute_max_radius(features_tsne, labels, centroids, unique_labels)
+                self.display_radius_table(max_radii, point_counts, feature_name, "3D", "PCA")
                 max_legend_classes = 20
                 if len(unique_labels) > max_legend_classes:
                     self.insert_metadata("Info", f"Showing {max_legend_classes} classes in legend. Full class list in centroid/distance files.")
@@ -869,6 +1012,8 @@ class NpyVisualizerApp:
                         self.distances_per_class[label] = distances
                         mode_distance = self.compute_mode_distance(distances)
                         table_data.append([f"Class {label}", f"{np.mean(distances):.4f}", f"{mode_distance:.4f}", f"{np.max(distances):.4f}"])
+                max_radii, point_counts = self.compute_max_radius(features_tsne, labels, centroids, unique_labels)
+                self.display_radius_table(max_radii, point_counts, feature_name, "3D", "TruncatedSVD")
                 max_legend_classes = 20
                 if len(unique_labels) > max_legend_classes:
                     self.insert_metadata("Info", f"Showing {max_legend_classes} classes in legend. Full class list in centroid/distance files.")
@@ -1059,9 +1204,6 @@ class NpyVisualizerApp:
                 else:
                     self.insert_metadata("Info", f"Skipping {key}: not a valid feature array (shape {arr.shape}, dtype {arr.dtype})")
                 self.root.update()
-
-
-
 
 def main(file_path=None):
     root = tk.Tk()
