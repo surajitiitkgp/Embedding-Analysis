@@ -41,6 +41,7 @@ from torchvision.models import (
     ConvNeXt_Large_Weights
 )
 import torch
+from torchvision.datasets import CIFAR10, MNIST, FashionMNIST, STL10
 
 try:
     import customtkinter as ctk
@@ -187,10 +188,9 @@ download_weights = ask_download_weights()
 # Initialize only selected models to save memory; dropdown will handle loading
 PRETRAINED_MODELS = {}  # We'll load models on-demand when selected from dropdown
 
-def preprocess_image(image_path, transform_choice, mode_value, target_size, use_rgb):
+def preprocess_image(image, transform_choice, mode_value, target_size, use_rgb):
     """Preprocess image based on mode and transformation choice."""
     try:
-        image = Image.open(image_path)
         num_channels = 3 if use_rgb or mode_value == "Pretrained" else 1
         image = image.convert("RGB" if num_channels == 3 else "L")
         
@@ -206,8 +206,8 @@ def preprocess_image(image_path, transform_choice, mode_value, target_size, use_
         ])
         return to_device(transform(image).unsqueeze(0))
     except Exception as e:
-        logging.error(f"Failed to preprocess image {image_path}: {str(e)}")
-        raise ValueError(f"Failed to preprocess image {image_path}: {str(e)}")
+        logging.error(f"Failed to preprocess image: {str(e)}")
+        raise ValueError(f"Failed to preprocess image: {str(e)}")
 
 def extract_features(layer_name, arch_window=None):
     """Extract features from images for a specific layer."""
@@ -218,9 +218,9 @@ def extract_features(layer_name, arch_window=None):
         messagebox.showerror("Error", "Please load/select a model first!")
         return
 
-    folder_path = filedialog.askdirectory(title="Select Folder of Images")
-    if not folder_path:
-        messagebox.showwarning("Warning", "No image folder selected.")
+    dataset_source = simpledialog.askstring("Select Dataset Source", "Choose one: Local, Standard", parent=root)
+    if dataset_source not in ["Local", "Standard"]:
+        messagebox.showerror("Invalid Choice", "Please choose either 'Local' or 'Standard'.")
         return
 
     transform_choice = simpledialog.askstring("Select Transformation", "Choose one: Resize, Crop, None", parent=root)
@@ -228,14 +228,48 @@ def extract_features(layer_name, arch_window=None):
         messagebox.showerror("Invalid Choice", "Please choose either 'Resize', 'Crop', or 'None'.")
         return
 
-    image_files = [os.path.join(r, f) for r, _, fs in os.walk(folder_path) 
-                   for f in fs if f.lower().endswith((".jpg", ".jpeg", ".png"))]
-    if not image_files:
-        messagebox.showerror("Error", "No valid image files found in the selected folder.")
-        return
+    dataset = None
+    classes = None
+    image_items = []
+    use_rgb = channel_var.get() if mode.get() == "Custom" else True
+    dataset_name = "Local"
+
+    if dataset_source == "Local":
+        folder_path = filedialog.askdirectory(title="Select Folder of Images")
+        if not folder_path:
+            messagebox.showwarning("Warning", "No image folder selected.")
+            return
+        image_items = [os.path.join(r, f) for r, _, fs in os.walk(folder_path) 
+                       for f in fs if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+        if not image_items:
+            messagebox.showerror("Error", "No valid image files found in the selected folder.")
+            return
+    else:
+        dataset_name = simpledialog.askstring("Select Standard Dataset", "Choose one: CIFAR10, MNIST, FashionMNIST, STL10", parent=root)
+        if dataset_name not in ["CIFAR10", "MNIST", "FashionMNIST", "STL10"]:
+            messagebox.showerror("Invalid Choice", "Invalid dataset.")
+            return
+        data_root = './data'
+        os.makedirs(data_root, exist_ok=True)
+        if dataset_name == "CIFAR10":
+            dataset = CIFAR10(root=data_root, download=True, train=False)
+            classes = dataset.classes
+            use_rgb = True
+        elif dataset_name == "MNIST":
+            dataset = MNIST(root=data_root, download=True, train=False)
+            classes = [str(i) for i in range(10)]
+            use_rgb = False
+        elif dataset_name == "FashionMNIST":
+            dataset = FashionMNIST(root=data_root, download=True, train=False)
+            classes = dataset.classes
+            use_rgb = False
+        elif dataset_name == "STL10":
+            dataset = STL10(root=data_root, download=True, split='test')
+            classes = dataset.classes
+            use_rgb = True
+        image_items = list(range(len(dataset)))
 
     target_size = (224, 224) if mode.get() == "Pretrained" else (int(height_var.get()), int(width_var.get()))
-    use_rgb = channel_var.get() if mode.get() == "Custom" else True
 
     # Create loading screen
     loading_window = ctk.CTkToplevel(root) if ctk else tk.Toplevel(root)
@@ -245,11 +279,11 @@ def extract_features(layer_name, arch_window=None):
     loading_window.grab_set()
     frame = ctk.CTkFrame(loading_window) if ctk else ttk.Frame(loading_window, padding=20)
     frame.pack(expand=True, fill="both")
-    progress_label = ctk.CTkLabel(frame, text=f"Processing: 0/{len(image_files)} images") if ctk else ttk.Label(frame, text=f"Processing: 0/{len(image_files)} images")
+    progress_label = ctk.CTkLabel(frame, text=f"Processing: 0/{len(image_items)} images") if ctk else ttk.Label(frame, text=f"Processing: 0/{len(image_items)} images")
     progress_label.pack(pady=5)
     file_label = ctk.CTkLabel(frame, text="Current file: None") if ctk else ttk.Label(frame, text="Current file: None")
     file_label.pack(pady=5)
-    progress_bar = ctk.CTkProgressBar(frame, mode="determinate") if ctk else ttk.Progressbar(frame, mode="determinate", maximum=len(image_files))
+    progress_bar = ctk.CTkProgressBar(frame, mode="determinate") if ctk else ttk.Progressbar(frame, mode="determinate", maximum=len(image_items))
     progress_bar.pack(pady=10, fill="x")
     if ctk:
         progress_bar.set(0)
@@ -275,27 +309,41 @@ def extract_features(layer_name, arch_window=None):
     saved_file_paths = []
     feature_list = []
     label_list = []
-    for i, image_path in enumerate(image_files, 1):
-        filename = os.path.basename(image_path)
-        progress_label.configure(text=f"Processing: {i}/{len(image_files)} images") if ctk else progress_label.config(text=f"Processing: {i}/{len(image_files)} images")
+    for i, item in enumerate(image_items, 1):
+        if dataset_source == "Local":
+            image_path = item
+            filename = os.path.basename(image_path)
+            try:
+                image = Image.open(image_path)
+            except Exception as e:
+                failed.append(f"{filename}: {str(e)}")
+                continue
+            label = os.path.basename(os.path.dirname(image_path))
+        else:
+            idx = item
+            image, label_idx = dataset[idx]
+            filename = f"image_{i}.jpg"
+            label = classes[label_idx]
+
+        progress_label.configure(text=f"Processing: {i}/{len(image_items)} images") if ctk else progress_label.config(text=f"Processing: {i}/{len(image_items)} images")
         file_label.configure(text=f"Current file: {filename}") if ctk else file_label.config(text=f"Current file: {filename}")
         if ctk:
-            progress_bar.set(i / len(image_files))
+            progress_bar.set(i / len(image_items))
         else:
             progress_bar["value"] = i
         root.update()
         try:
-            image_tensor = preprocess_image(image_path, transform_choice, mode.get(), target_size, use_rgb)
+            image_tensor = preprocess_image(image, transform_choice, mode.get(), target_size, use_rgb)
             with torch.no_grad():
                 selected_model(image_tensor)
             if hook_fn.output is not None:
-                out_folder = Path("features") / selected_model_name / f"{layer_name} ({transform_choice})" / os.path.relpath(os.path.dirname(image_path), folder_path)
+                out_folder = Path("features") / selected_model_name / f"{layer_name} ({transform_choice})" / label
                 out_folder.mkdir(parents=True, exist_ok=True)
                 save_path = out_folder / f"{os.path.splitext(filename)[0]}.npy"
                 np.save(save_path, hook_fn.output)
                 saved_file_paths.append(str(save_path.relative_to("features")))
                 feature_list.append(to_gpu(hook_fn.output.flatten()))
-                label_list.append(os.path.basename(os.path.dirname(image_path)))
+                label_list.append(label)
         except Exception as e:
             failed.append(f"{filename}: {str(e)}")
 
@@ -306,7 +354,7 @@ def extract_features(layer_name, arch_window=None):
         try:
             features_array = to_cpu(np.vstack([to_cpu(f) for f in feature_list]))
             labels_array = np.array(label_list)
-            npz_save_path = Path("features") / selected_model_name / f"{layer_name} ({transform_choice})" / f"{selected_model_name}_{layer_name}_{transform_choice}_all_classes.npz"
+            npz_save_path = Path("features") / selected_model_name / f"{layer_name} ({transform_choice})" / f"{selected_model_name}_{layer_name}_{transform_choice}_all_classes_{dataset_name}.npz"
             npz_save_path.parent.mkdir(parents=True, exist_ok=True)
             np.savez(npz_save_path, features=features_array, labels=labels_array)
             npz_file_path = str(npz_save_path.resolve())
