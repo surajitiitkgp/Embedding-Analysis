@@ -246,7 +246,7 @@ def extract_features(layer_name, arch_window=None):
             return
     else:
         dataset_name = simpledialog.askstring("Select Standard Dataset", "Choose one: CIFAR10, CIFAR100,MNIST, FashionMNIST, STL10", parent=root)
-        if dataset_name not in ["CIFAR10", "MNIST", "FashionMNIST", "STL10"]:
+        if dataset_name not in ["CIFAR10", "CIFAR100","MNIST", "FashionMNIST", "STL10"]:
             messagebox.showerror("Invalid Choice", "Invalid dataset.")
             return
         data_root = './data'
