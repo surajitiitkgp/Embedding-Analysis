@@ -41,7 +41,7 @@ from torchvision.models import (
     ConvNeXt_Large_Weights
 )
 import torch
-from torchvision.datasets import CIFAR10, MNIST, FashionMNIST, STL10
+from torchvision.datasets import CIFAR10, CIFAR100 ,MNIST, FashionMNIST, STL10
 
 try:
     import customtkinter as ctk
@@ -245,7 +245,7 @@ def extract_features(layer_name, arch_window=None):
             messagebox.showerror("Error", "No valid image files found in the selected folder.")
             return
     else:
-        dataset_name = simpledialog.askstring("Select Standard Dataset", "Choose one: CIFAR10, MNIST, FashionMNIST, STL10", parent=root)
+        dataset_name = simpledialog.askstring("Select Standard Dataset", "Choose one: CIFAR10, CIFAR100,MNIST, FashionMNIST, STL10", parent=root)
         if dataset_name not in ["CIFAR10", "MNIST", "FashionMNIST", "STL10"]:
             messagebox.showerror("Invalid Choice", "Invalid dataset.")
             return
@@ -253,6 +253,10 @@ def extract_features(layer_name, arch_window=None):
         os.makedirs(data_root, exist_ok=True)
         if dataset_name == "CIFAR10":
             dataset = CIFAR10(root=data_root, download=True, train=False)
+            classes = dataset.classes
+            use_rgb = True
+        elif dataset_name == "CIFAR100":
+            dataset = CIFAR100(root=data_root, download=True, train=False)
             classes = dataset.classes
             use_rgb = True
         elif dataset_name == "MNIST":
