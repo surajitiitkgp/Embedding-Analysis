@@ -18,7 +18,6 @@ import sys
 import logging
 from pathlib import Path
 from glob import glob
-import torchvision.models as models
 from torchvision.models import (
     VGG11_Weights, VGG11_BN_Weights, VGG13_Weights, VGG13_BN_Weights,
     VGG16_Weights, VGG16_BN_Weights, VGG19_Weights, VGG19_BN_Weights,
@@ -40,9 +39,7 @@ from torchvision.models import (
     MaxVit_T_Weights, ConvNeXt_Tiny_Weights, ConvNeXt_Small_Weights, ConvNeXt_Base_Weights,
     ConvNeXt_Large_Weights
 )
-import torch
-from torchvision.datasets import CIFAR10, CIFAR100 ,MNIST, FashionMNIST, STL10
-
+from torchvision.datasets import CIFAR10, CIFAR100, MNIST, FashionMNIST, STL10
 try:
     import customtkinter as ctk
     print("Running on CustomTkinter")
@@ -53,7 +50,7 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
     ctk = None
-from tkinter import filedialog, messagebox, simpledialog
+from tkinter import filedialog, messagebox
 from visualisation_app import NpyVisualizerApp  # Import the optimized NpyVisualizerApp
 
 # Setup logging
@@ -149,7 +146,6 @@ MODELS_DICT = {
     "ConvNeXt_Large": (models.convnext_large, ConvNeXt_Large_Weights.DEFAULT),
 }
 
-
 def to_device(tensor):
     """Move tensor to the appropriate device (GPU/CPU)."""
     return tensor.to(device)
@@ -171,9 +167,6 @@ def get_model(model_name, download_weights, device="cuda" if torch.cuda.is_avail
     model = model_fn(weights=weights if download_weights else None)
     return model.to(device)
 
-    
-
-
 def ask_download_weights():
     """Prompt user to download pretrained weights."""
     while True:
@@ -185,7 +178,6 @@ def ask_download_weights():
         print("Please enter 'yes' or 'no'.")
 
 download_weights = ask_download_weights()
-# Initialize only selected models to save memory; dropdown will handle loading
 PRETRAINED_MODELS = {}  # We'll load models on-demand when selected from dropdown
 
 def preprocess_image(image, transform_choice, mode_value, target_size, use_rgb):
@@ -209,6 +201,38 @@ def preprocess_image(image, transform_choice, mode_value, target_size, use_rgb):
         logging.error(f"Failed to preprocess image: {str(e)}")
         raise ValueError(f"Failed to preprocess image: {str(e)}")
 
+def select_from_dropdown(title, prompt, options, parent):
+    """Create a dropdown dialog for selecting an option."""
+    dialog = ctk.CTkToplevel(parent) if ctk else tk.Toplevel(parent)
+    dialog.title(title)
+    dialog.geometry("300x150")
+    dialog.transient(parent)
+    dialog.grab_set()
+    if not ctk:
+        dialog.configure(bg="white")
+
+    (ctk.CTkLabel(dialog, text=prompt) if ctk else
+     ttk.Label(dialog, text=prompt, font=("Segoe UI", 10), background="white")).pack(pady=10)
+
+    selected = ctk.StringVar(value=options[0]) if ctk else tk.StringVar(value=options[0])
+    (ctk.CTkOptionMenu(dialog, variable=selected, values=options) if ctk else
+     ttk.Combobox(dialog, textvariable=selected, values=options, state="readonly")).pack(pady=5, padx=20, fill="x")
+
+    def confirm():
+        dialog.destroy()
+
+    def cancel():
+        selected.set("")
+        dialog.destroy()
+
+    (ctk.CTkButton(dialog, text="Confirm", command=confirm) if ctk else
+     ttk.Button(dialog, text="Confirm", command=confirm)).pack(pady=5)
+    (ctk.CTkButton(dialog, text="Cancel", command=cancel) if ctk else
+     ttk.Button(dialog, text="Cancel", command=cancel)).pack(pady=5)
+
+    dialog.wait_window()
+    return selected.get()
+
 def extract_features(layer_name, arch_window=None):
     """Extract features from images for a specific layer."""
     global selected_model, selected_model_name, npz_file_path, mode, width_var, height_var, channel_var
@@ -218,12 +242,26 @@ def extract_features(layer_name, arch_window=None):
         messagebox.showerror("Error", "Please load/select a model first!")
         return
 
-    dataset_source = simpledialog.askstring("Select Dataset Source", "Choose one: Local, Standard", parent=root)
+    dataset_source = select_from_dropdown(
+        "Select Dataset Source",
+        "Choose dataset source:",
+        ["Local", "Standard"],
+        root
+    )
+    if not dataset_source:
+        return
     if dataset_source not in ["Local", "Standard"]:
         messagebox.showerror("Invalid Choice", "Please choose either 'Local' or 'Standard'.")
         return
 
-    transform_choice = simpledialog.askstring("Select Transformation", "Choose one: Resize, Crop, None", parent=root)
+    transform_choice = select_from_dropdown(
+        "Select Transformation",
+        "Choose transformation:",
+        ["Resize", "Crop", "None"],
+        root
+    )
+    if not transform_choice:
+        return
     if transform_choice not in ["Resize", "Crop", "None"]:
         messagebox.showerror("Invalid Choice", "Please choose either 'Resize', 'Crop', or 'None'.")
         return
@@ -245,8 +283,15 @@ def extract_features(layer_name, arch_window=None):
             messagebox.showerror("Error", "No valid image files found in the selected folder.")
             return
     else:
-        dataset_name = simpledialog.askstring("Select Standard Dataset", "Choose one: CIFAR10, CIFAR100,MNIST, FashionMNIST, STL10", parent=root)
-        if dataset_name not in ["CIFAR10", "CIFAR100","MNIST", "FashionMNIST", "STL10"]:
+        dataset_name = select_from_dropdown(
+            "Select Standard Dataset",
+            "Choose standard dataset:",
+            ["CIFAR10", "CIFAR100", "MNIST", "FashionMNIST", "STL10"],
+            root
+        )
+        if not dataset_name:
+            return
+        if dataset_name not in ["CIFAR10", "CIFAR100", "MNIST", "FashionMNIST", "STL10"]:
             messagebox.showerror("Invalid Choice", "Invalid dataset.")
             return
         data_root = './data'
@@ -465,7 +510,6 @@ def select_pretrained_model(name):
     compute_layer_shapes()
     messagebox.showinfo("Model Selected", f"Loaded pretrained model: {name}")
 
-
 def show_model_file_contents(file_path):
     """Display contents of a model definition file."""
     try:
@@ -670,11 +714,13 @@ def main_screen():
             global width_var, height_var, channel_var
             width_var = ctk.StringVar(value="224") if ctk else tk.StringVar(value="224")
             height_var = ctk.StringVar(value="224") if ctk else tk.StringVar(value="224")
-            (ctk.CTkEntry(dim_frame, textvariable=width_var, width=80) if ctk else
-             ttk.Entry(dim_frame, textvariable=width_var, width=8)).pack(side="left", padx=5)
+            # Predefined image sizes for dropdown
+            size_options = ["32", "64", "128", "224", "256", "299", "384"]
+            (ctk.CTkOptionMenu(dim_frame, variable=width_var, values=size_options) if ctk else
+             ttk.Combobox(dim_frame, textvariable=width_var, values=size_options, state="readonly", width=8)).pack(side="left", padx=5)
             (ctk.CTkLabel(dim_frame, text="x") if ctk else ttk.Label(dim_frame, text="x")).pack(side="left")
-            (ctk.CTkEntry(dim_frame, textvariable=height_var, width=80) if ctk else
-             ttk.Entry(dim_frame, textvariable=height_var, width=8)).pack(side="left", padx=5)
+            (ctk.CTkOptionMenu(dim_frame, variable=height_var, values=size_options) if ctk else
+             ttk.Combobox(dim_frame, textvariable=height_var, values=size_options, state="readonly", width=8)).pack(side="left", padx=5)
             channel_var = ctk.BooleanVar(value=True) if ctk else tk.BooleanVar(value=True)
             (ctk.CTkCheckBox(model_frame, text="Use RGB Channel", variable=channel_var) if ctk else
              ttk.Checkbutton(model_frame, text="Use RGB Channel", variable=channel_var)).pack(pady=10)
@@ -699,14 +745,13 @@ def main_screen():
     (ctk.CTkOptionMenu(vis_frame, variable=algo_var, values=["PCA", "TruncatedSVD"]) if ctk else
      ttk.Combobox(vis_frame, textvariable=algo_var, values=["PCA", "TruncatedSVD"], state="readonly")).pack(pady=5, padx=20, fill="x")
     (ctk.CTkLabel(vis_frame, text="Distance Metric:") if ctk else ttk.Label(vis_frame, text="Distance Metric:")).pack(pady=(10, 3))
-    dis_var = ctk.StringVar(value="Euclidean") if ctk else tk.StringVar(value="euclidean")
+    dis_var = ctk.StringVar(value="euclidean") if ctk else tk.StringVar(value="euclidean")
     (ctk.CTkOptionMenu(vis_frame, variable=dis_var, values=["euclidean", "cosine", "cityblock", "canberra"]) if ctk else
      ttk.Combobox(vis_frame, textvariable=dis_var, values=["euclidean", "cosine", "cityblock", "canberra"], state="readonly")).pack(pady=5, padx=20, fill="x")
     (ctk.CTkButton(vis_frame, text="Run Embedding Analysis", command=run_visualisation) if ctk else
      ttk.Button(vis_frame, text="Run Embedding Analysis", command=run_visualisation)).pack(pady=15)
 
     root.mainloop()
-
 
 if __name__ == "__main__":
     main_screen()

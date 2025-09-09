@@ -1,4 +1,3 @@
-# ```python
 import torch
 import torch.nn as nn
 import torchvision.models as models
@@ -42,6 +41,7 @@ from torchvision.models import (
     ConvNeXt_Large_Weights
 )
 import torch
+from torchvision.datasets import CIFAR10, CIFAR100 ,MNIST, FashionMNIST, STL10
 
 try:
     import customtkinter as ctk
@@ -72,6 +72,84 @@ npz_file_path = None
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logging.debug(f"Using device: {device}")
 
+MODELS_DICT = {
+    "VGG11": (models.vgg11, VGG11_Weights.DEFAULT),
+    "VGG11_BN": (models.vgg11_bn, VGG11_BN_Weights.DEFAULT),
+    "VGG13": (models.vgg13, VGG13_Weights.DEFAULT),
+    "VGG13_BN": (models.vgg13_bn, VGG13_BN_Weights.DEFAULT),
+    "VGG16": (models.vgg16, VGG16_Weights.DEFAULT),
+    "VGG16_BN": (models.vgg16_bn, VGG16_BN_Weights.DEFAULT),
+    "VGG19": (models.vgg19, VGG19_Weights.DEFAULT),
+    "VGG19_BN": (models.vgg19_bn, VGG19_BN_Weights.DEFAULT),
+    "ResNet18": (models.resnet18, ResNet18_Weights.DEFAULT),
+    "ResNet34": (models.resnet34, ResNet34_Weights.DEFAULT),
+    "ResNet50": (models.resnet50, ResNet50_Weights.DEFAULT),
+    "ResNet101": (models.resnet101, ResNet101_Weights.DEFAULT),
+    "ResNet152": (models.resnet152, ResNet152_Weights.DEFAULT),
+    "ResNeXt50_32x4d": (models.resnext50_32x4d, ResNeXt50_32X4D_Weights.DEFAULT),
+    "ResNeXt101_32x8d": (models.resnext101_32x8d, ResNeXt101_32X8D_Weights.DEFAULT),
+    "ResNeXt101_64x4d": (models.resnext101_64x4d, ResNeXt101_64X4D_Weights.DEFAULT),
+    "Wide_ResNet50_2": (models.wide_resnet50_2, Wide_ResNet50_2_Weights.DEFAULT),
+    "Wide_ResNet101_2": (models.wide_resnet101_2, Wide_ResNet101_2_Weights.DEFAULT),
+    "AlexNet": (models.alexnet, AlexNet_Weights.DEFAULT),
+    "DenseNet121": (models.densenet121, DenseNet121_Weights.DEFAULT),
+    "DenseNet161": (models.densenet161, DenseNet161_Weights.DEFAULT),
+    "DenseNet169": (models.densenet169, DenseNet169_Weights.DEFAULT),
+    "DenseNet201": (models.densenet201, DenseNet201_Weights.DEFAULT),
+    "Inception_V3": (models.inception_v3, Inception_V3_Weights.DEFAULT),
+    "GoogLeNet": (models.googlenet, GoogLeNet_Weights.DEFAULT),
+    "MobileNet_V2": (models.mobilenet_v2, MobileNet_V2_Weights.DEFAULT),
+    "MobileNet_V3_Small": (models.mobilenet_v3_small, MobileNet_V3_Small_Weights.DEFAULT),
+    "MobileNet_V3_Large": (models.mobilenet_v3_large, MobileNet_V3_Large_Weights.DEFAULT),
+    "MNASNet0_5": (models.mnasnet0_5, MNASNet0_5_Weights.DEFAULT),
+    "MNASNet0_75": (models.mnasnet0_75, MNASNet0_75_Weights.DEFAULT),
+    "MNASNet1_0": (models.mnasnet1_0, MNASNet1_0_Weights.DEFAULT),
+    "MNASNet1_3": (models.mnasnet1_3, MNASNet1_3_Weights.DEFAULT),
+    "EfficientNet_B0": (models.efficientnet_b0, EfficientNet_B0_Weights.DEFAULT),
+    "EfficientNet_B1": (models.efficientnet_b1, EfficientNet_B1_Weights.DEFAULT),
+    "EfficientNet_B2": (models.efficientnet_b2, EfficientNet_B2_Weights.DEFAULT),
+    "EfficientNet_B3": (models.efficientnet_b3, EfficientNet_B3_Weights.DEFAULT),
+    "EfficientNet_B4": (models.efficientnet_b4, EfficientNet_B4_Weights.DEFAULT),
+    "EfficientNet_B5": (models.efficientnet_b5, EfficientNet_B5_Weights.DEFAULT),
+    "EfficientNet_B6": (models.efficientnet_b6, EfficientNet_B6_Weights.DEFAULT),
+    "EfficientNet_B7": (models.efficientnet_b7, EfficientNet_B7_Weights.DEFAULT),
+    "EfficientNet_V2_S": (models.efficientnet_v2_s, EfficientNet_V2_S_Weights.DEFAULT),
+    "EfficientNet_V2_M": (models.efficientnet_v2_m, EfficientNet_V2_M_Weights.DEFAULT),
+    "EfficientNet_V2_L": (models.efficientnet_v2_l, EfficientNet_V2_L_Weights.DEFAULT),
+    "RegNet_X_400MF": (models.regnet_x_400mf, RegNet_X_400MF_Weights.DEFAULT),
+    "RegNet_X_800MF": (models.regnet_x_800mf, RegNet_X_800MF_Weights.DEFAULT),
+    "RegNet_X_1_6GF": (models.regnet_x_1_6gf, RegNet_X_1_6GF_Weights.DEFAULT),
+    "RegNet_X_3_2GF": (models.regnet_x_3_2gf, RegNet_X_3_2GF_Weights.DEFAULT),
+    "RegNet_X_8GF": (models.regnet_x_8gf, RegNet_X_8GF_Weights.DEFAULT),
+    "RegNet_X_16GF": (models.regnet_x_16gf, RegNet_X_16GF_Weights.DEFAULT),
+    "RegNet_X_32GF": (models.regnet_x_32gf, RegNet_X_32GF_Weights.DEFAULT),
+    "RegNet_Y_400MF": (models.regnet_y_400mf, RegNet_Y_400MF_Weights.DEFAULT),
+    "RegNet_Y_800MF": (models.regnet_y_800mf, RegNet_Y_800MF_Weights.DEFAULT),
+    "RegNet_Y_1_6GF": (models.regnet_y_1_6gf, RegNet_Y_1_6GF_Weights.DEFAULT),
+    "RegNet_Y_3_2GF": (models.regnet_y_3_2gf, RegNet_Y_3_2GF_Weights.DEFAULT),
+    "RegNet_Y_8GF": (models.regnet_y_8gf, RegNet_Y_8GF_Weights.DEFAULT),
+    "RegNet_Y_16GF": (models.regnet_y_16gf, RegNet_Y_16GF_Weights.DEFAULT),
+    "RegNet_Y_32GF": (models.regnet_y_32gf, RegNet_Y_32GF_Weights.DEFAULT),
+    "RegNet_Y_128GF": (models.regnet_y_128gf, RegNet_Y_128GF_Weights.DEFAULT),
+    "ViT_B_16": (models.vit_b_16, ViT_B_16_Weights.DEFAULT),
+    "ViT_B_32": (models.vit_b_32, ViT_B_32_Weights.DEFAULT),
+    "ViT_L_16": (models.vit_l_16, ViT_L_16_Weights.DEFAULT),
+    "ViT_L_32": (models.vit_l_32, ViT_L_32_Weights.DEFAULT),
+    "ViT_H_14": (models.vit_h_14, ViT_H_14_Weights.DEFAULT),
+    "Swin_T": (models.swin_t, Swin_T_Weights.DEFAULT),
+    "Swin_S": (models.swin_s, Swin_S_Weights.DEFAULT),
+    "Swin_B": (models.swin_b, Swin_B_Weights.DEFAULT),
+    "Swin_V2_T": (models.swin_v2_t, Swin_V2_T_Weights.DEFAULT),
+    "Swin_V2_S": (models.swin_v2_s, Swin_V2_S_Weights.DEFAULT),
+    "Swin_V2_B": (models.swin_v2_b, Swin_V2_B_Weights.DEFAULT),
+    "MaxVit_T": (models.maxvit_t, MaxVit_T_Weights.DEFAULT),
+    "ConvNeXt_Tiny": (models.convnext_tiny, ConvNeXt_Tiny_Weights.DEFAULT),
+    "ConvNeXt_Small": (models.convnext_small, ConvNeXt_Small_Weights.DEFAULT),
+    "ConvNeXt_Base": (models.convnext_base, ConvNeXt_Base_Weights.DEFAULT),
+    "ConvNeXt_Large": (models.convnext_large, ConvNeXt_Large_Weights.DEFAULT),
+}
+
+
 def to_device(tensor):
     """Move tensor to the appropriate device (GPU/CPU)."""
     return tensor.to(device)
@@ -86,89 +164,15 @@ def to_cpu(arr):
 
 def get_model(model_name, download_weights, device="cuda" if torch.cuda.is_available() else "cpu"):
     """Load a pretrained model from torchvision.models with optional weights."""
-    models_dict = {
-        "VGG11": (models.vgg11, VGG11_Weights.DEFAULT),
-        "VGG11_BN": (models.vgg11_bn, VGG11_BN_Weights.DEFAULT),
-        "VGG13": (models.vgg13, VGG13_Weights.DEFAULT),
-        "VGG13_BN": (models.vgg13_bn, VGG13_BN_Weights.DEFAULT),
-        "VGG16": (models.vgg16, VGG16_Weights.DEFAULT),
-        "VGG16_BN": (models.vgg16_bn, VGG16_BN_Weights.DEFAULT),
-        "VGG19": (models.vgg19, VGG19_Weights.DEFAULT),
-        "VGG19_BN": (models.vgg19_bn, VGG19_BN_Weights.DEFAULT),
-        "ResNet18": (models.resnet18, ResNet18_Weights.DEFAULT),
-        "ResNet34": (models.resnet34, ResNet34_Weights.DEFAULT),
-        "ResNet50": (models.resnet50, ResNet50_Weights.DEFAULT),
-        "ResNet101": (models.resnet101, ResNet101_Weights.DEFAULT),
-        "ResNet152": (models.resnet152, ResNet152_Weights.DEFAULT),
-        "ResNeXt50_32x4d": (models.resnext50_32x4d, ResNeXt50_32X4D_Weights.DEFAULT),
-        "ResNeXt101_32x8d": (models.resnext101_32x8d, ResNeXt101_32X8D_Weights.DEFAULT),
-        "ResNeXt101_64x4d": (models.resnext101_64x4d, ResNeXt101_64X4D_Weights.DEFAULT),
-        "Wide_ResNet50_2": (models.wide_resnet50_2, Wide_ResNet50_2_Weights.DEFAULT),
-        "Wide_ResNet101_2": (models.wide_resnet101_2, Wide_ResNet101_2_Weights.DEFAULT),
-        "AlexNet": (models.alexnet, AlexNet_Weights.DEFAULT),
-        "DenseNet121": (models.densenet121, DenseNet121_Weights.DEFAULT),
-        "DenseNet161": (models.densenet161, DenseNet161_Weights.DEFAULT),
-        "DenseNet169": (models.densenet169, DenseNet169_Weights.DEFAULT),
-        "DenseNet201": (models.densenet201, DenseNet201_Weights.DEFAULT),
-        "Inception_V3": (models.inception_v3, Inception_V3_Weights.DEFAULT),
-        "GoogLeNet": (models.googlenet, GoogLeNet_Weights.DEFAULT),
-        "MobileNet_V2": (models.mobilenet_v2, MobileNet_V2_Weights.DEFAULT),
-        "MobileNet_V3_Small": (models.mobilenet_v3_small, MobileNet_V3_Small_Weights.DEFAULT),
-        "MobileNet_V3_Large": (models.mobilenet_v3_large, MobileNet_V3_Large_Weights.DEFAULT),
-        "MNASNet0_5": (models.mnasnet0_5, MNASNet0_5_Weights.DEFAULT),
-        "MNASNet0_75": (models.mnasnet0_75, MNASNet0_75_Weights.DEFAULT),
-        "MNASNet1_0": (models.mnasnet1_0, MNASNet1_0_Weights.DEFAULT),
-        "MNASNet1_3": (models.mnasnet1_3, MNASNet1_3_Weights.DEFAULT),
-        "EfficientNet_B0": (models.efficientnet_b0, EfficientNet_B0_Weights.DEFAULT),
-        "EfficientNet_B1": (models.efficientnet_b1, EfficientNet_B1_Weights.DEFAULT),
-        "EfficientNet_B2": (models.efficientnet_b2, EfficientNet_B2_Weights.DEFAULT),
-        "EfficientNet_B3": (models.efficientnet_b3, EfficientNet_B3_Weights.DEFAULT),
-        "EfficientNet_B4": (models.efficientnet_b4, EfficientNet_B4_Weights.DEFAULT),
-        "EfficientNet_B5": (models.efficientnet_b5, EfficientNet_B5_Weights.DEFAULT),
-        "EfficientNet_B6": (models.efficientnet_b6, EfficientNet_B6_Weights.DEFAULT),
-        "EfficientNet_B7": (models.efficientnet_b7, EfficientNet_B7_Weights.DEFAULT),
-        "EfficientNet_V2_S": (models.efficientnet_v2_s, EfficientNet_V2_S_Weights.DEFAULT),
-        "EfficientNet_V2_M": (models.efficientnet_v2_m, EfficientNet_V2_M_Weights.DEFAULT),
-        "EfficientNet_V2_L": (models.efficientnet_v2_l, EfficientNet_V2_L_Weights.DEFAULT),
-        "RegNet_X_400MF": (models.regnet_x_400mf, RegNet_X_400MF_Weights.DEFAULT),
-        "RegNet_X_800MF": (models.regnet_x_800mf, RegNet_X_800MF_Weights.DEFAULT),
-        "RegNet_X_1_6GF": (models.regnet_x_1_6gf, RegNet_X_1_6GF_Weights.DEFAULT),
-        "RegNet_X_3_2GF": (models.regnet_x_3_2gf, RegNet_X_3_2GF_Weights.DEFAULT),
-        "RegNet_X_8GF": (models.regnet_x_8gf, RegNet_X_8GF_Weights.DEFAULT),
-        "RegNet_X_16GF": (models.regnet_x_16gf, RegNet_X_16GF_Weights.DEFAULT),
-        "RegNet_X_32GF": (models.regnet_x_32gf, RegNet_X_32GF_Weights.DEFAULT),
-        "RegNet_Y_400MF": (models.regnet_y_400mf, RegNet_Y_400MF_Weights.DEFAULT),
-        "RegNet_Y_800MF": (models.regnet_y_800mf, RegNet_Y_800MF_Weights.DEFAULT),
-        "RegNet_Y_1_6GF": (models.regnet_y_1_6gf, RegNet_Y_1_6GF_Weights.DEFAULT),
-        "RegNet_Y_3_2GF": (models.regnet_y_3_2gf, RegNet_Y_3_2GF_Weights.DEFAULT),
-        "RegNet_Y_8GF": (models.regnet_y_8gf, RegNet_Y_8GF_Weights.DEFAULT),
-        "RegNet_Y_16GF": (models.regnet_y_16gf, RegNet_Y_16GF_Weights.DEFAULT),
-        "RegNet_Y_32GF": (models.regnet_y_32gf, RegNet_Y_32GF_Weights.DEFAULT),
-        "RegNet_Y_128GF": (models.regnet_y_128gf, RegNet_Y_128GF_Weights.DEFAULT),
-        "ViT_B_16": (models.vit_b_16, ViT_B_16_Weights.DEFAULT),
-        "ViT_B_32": (models.vit_b_32, ViT_B_32_Weights.DEFAULT),
-        "ViT_L_16": (models.vit_l_16, ViT_L_16_Weights.DEFAULT),
-        "ViT_L_32": (models.vit_l_32, ViT_L_32_Weights.DEFAULT),
-        "ViT_H_14": (models.vit_h_14, ViT_H_14_Weights.DEFAULT),
-        "Swin_T": (models.swin_t, Swin_T_Weights.DEFAULT),
-        "Swin_S": (models.swin_s, Swin_S_Weights.DEFAULT),
-        "Swin_B": (models.swin_b, Swin_B_Weights.DEFAULT),
-        "Swin_V2_T": (models.swin_v2_t, Swin_V2_T_Weights.DEFAULT),
-        "Swin_V2_S": (models.swin_v2_s, Swin_V2_S_Weights.DEFAULT),
-        "Swin_V2_B": (models.swin_v2_b, Swin_V2_B_Weights.DEFAULT),
-        "MaxVit_T": (models.maxvit_t, MaxVit_T_Weights.DEFAULT),
-        "ConvNeXt_Tiny": (models.convnext_tiny, ConvNeXt_Tiny_Weights.DEFAULT),
-        "ConvNeXt_Small": (models.convnext_small, ConvNeXt_Small_Weights.DEFAULT),
-        "ConvNeXt_Base": (models.convnext_base, ConvNeXt_Base_Weights.DEFAULT),
-        "ConvNeXt_Large": (models.convnext_large, ConvNeXt_Large_Weights.DEFAULT),
-    }
-
-    if model_name not in models_dict:
-        raise ValueError(f"Unknown model: {model_name}. Available models: {list(models_dict.keys())}")
+    if model_name not in MODELS_DICT:
+        raise ValueError(f"Unknown model: {model_name}. Available models: {list(MODELS_DICT.keys())}")
     
-    model_fn, weights = models_dict[model_name]
+    model_fn, weights = MODELS_DICT[model_name]
     model = model_fn(weights=weights if download_weights else None)
     return model.to(device)
+
+    
+
 
 def ask_download_weights():
     """Prompt user to download pretrained weights."""
@@ -181,14 +185,12 @@ def ask_download_weights():
         print("Please enter 'yes' or 'no'.")
 
 download_weights = ask_download_weights()
-PRETRAINED_MODELS = {
-    name: get_model(name, download_weights) for name in ["VGG16", "ResNet18", "AlexNet"]
-}
+# Initialize only selected models to save memory; dropdown will handle loading
+PRETRAINED_MODELS = {}  # We'll load models on-demand when selected from dropdown
 
-def preprocess_image(image_path, transform_choice, mode_value, target_size, use_rgb):
+def preprocess_image(image, transform_choice, mode_value, target_size, use_rgb):
     """Preprocess image based on mode and transformation choice."""
     try:
-        image = Image.open(image_path)
         num_channels = 3 if use_rgb or mode_value == "Pretrained" else 1
         image = image.convert("RGB" if num_channels == 3 else "L")
         
@@ -204,8 +206,8 @@ def preprocess_image(image_path, transform_choice, mode_value, target_size, use_
         ])
         return to_device(transform(image).unsqueeze(0))
     except Exception as e:
-        logging.error(f"Failed to preprocess image {image_path}: {str(e)}")
-        raise ValueError(f"Failed to preprocess image {image_path}: {str(e)}")
+        logging.error(f"Failed to preprocess image: {str(e)}")
+        raise ValueError(f"Failed to preprocess image: {str(e)}")
 
 def extract_features(layer_name, arch_window=None):
     """Extract features from images for a specific layer."""
@@ -216,9 +218,9 @@ def extract_features(layer_name, arch_window=None):
         messagebox.showerror("Error", "Please load/select a model first!")
         return
 
-    folder_path = filedialog.askdirectory(title="Select Folder of Images")
-    if not folder_path:
-        messagebox.showwarning("Warning", "No image folder selected.")
+    dataset_source = simpledialog.askstring("Select Dataset Source", "Choose one: Local, Standard", parent=root)
+    if dataset_source not in ["Local", "Standard"]:
+        messagebox.showerror("Invalid Choice", "Please choose either 'Local' or 'Standard'.")
         return
 
     transform_choice = simpledialog.askstring("Select Transformation", "Choose one: Resize, Crop, None", parent=root)
@@ -226,14 +228,52 @@ def extract_features(layer_name, arch_window=None):
         messagebox.showerror("Invalid Choice", "Please choose either 'Resize', 'Crop', or 'None'.")
         return
 
-    image_files = [os.path.join(r, f) for r, _, fs in os.walk(folder_path) 
-                   for f in fs if f.lower().endswith((".jpg", ".jpeg", ".png"))]
-    if not image_files:
-        messagebox.showerror("Error", "No valid image files found in the selected folder.")
-        return
+    dataset = None
+    classes = None
+    image_items = []
+    use_rgb = channel_var.get() if mode.get() == "Custom" else True
+    dataset_name = "Local"
+
+    if dataset_source == "Local":
+        folder_path = filedialog.askdirectory(title="Select Folder of Images")
+        if not folder_path:
+            messagebox.showwarning("Warning", "No image folder selected.")
+            return
+        image_items = [os.path.join(r, f) for r, _, fs in os.walk(folder_path) 
+                       for f in fs if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+        if not image_items:
+            messagebox.showerror("Error", "No valid image files found in the selected folder.")
+            return
+    else:
+        dataset_name = simpledialog.askstring("Select Standard Dataset", "Choose one: CIFAR10, CIFAR100,MNIST, FashionMNIST, STL10", parent=root)
+        if dataset_name not in ["CIFAR10", "CIFAR100","MNIST", "FashionMNIST", "STL10"]:
+            messagebox.showerror("Invalid Choice", "Invalid dataset.")
+            return
+        data_root = './data'
+        os.makedirs(data_root, exist_ok=True)
+        if dataset_name == "CIFAR10":
+            dataset = CIFAR10(root=data_root, download=True, train=False)
+            classes = dataset.classes
+            use_rgb = True
+        elif dataset_name == "CIFAR100":
+            dataset = CIFAR100(root=data_root, download=True, train=False)
+            classes = dataset.classes
+            use_rgb = True
+        elif dataset_name == "MNIST":
+            dataset = MNIST(root=data_root, download=True, train=False)
+            classes = [str(i) for i in range(10)]
+            use_rgb = False
+        elif dataset_name == "FashionMNIST":
+            dataset = FashionMNIST(root=data_root, download=True, train=False)
+            classes = dataset.classes
+            use_rgb = False
+        elif dataset_name == "STL10":
+            dataset = STL10(root=data_root, download=True, split='test')
+            classes = dataset.classes
+            use_rgb = True
+        image_items = list(range(len(dataset)))
 
     target_size = (224, 224) if mode.get() == "Pretrained" else (int(height_var.get()), int(width_var.get()))
-    use_rgb = channel_var.get() if mode.get() == "Custom" else True
 
     # Create loading screen
     loading_window = ctk.CTkToplevel(root) if ctk else tk.Toplevel(root)
@@ -243,11 +283,11 @@ def extract_features(layer_name, arch_window=None):
     loading_window.grab_set()
     frame = ctk.CTkFrame(loading_window) if ctk else ttk.Frame(loading_window, padding=20)
     frame.pack(expand=True, fill="both")
-    progress_label = ctk.CTkLabel(frame, text=f"Processing: 0/{len(image_files)} images") if ctk else ttk.Label(frame, text=f"Processing: 0/{len(image_files)} images")
+    progress_label = ctk.CTkLabel(frame, text=f"Processing: 0/{len(image_items)} images") if ctk else ttk.Label(frame, text=f"Processing: 0/{len(image_items)} images")
     progress_label.pack(pady=5)
     file_label = ctk.CTkLabel(frame, text="Current file: None") if ctk else ttk.Label(frame, text="Current file: None")
     file_label.pack(pady=5)
-    progress_bar = ctk.CTkProgressBar(frame, mode="determinate") if ctk else ttk.Progressbar(frame, mode="determinate", maximum=len(image_files))
+    progress_bar = ctk.CTkProgressBar(frame, mode="determinate") if ctk else ttk.Progressbar(frame, mode="determinate", maximum=len(image_items))
     progress_bar.pack(pady=10, fill="x")
     if ctk:
         progress_bar.set(0)
@@ -273,27 +313,41 @@ def extract_features(layer_name, arch_window=None):
     saved_file_paths = []
     feature_list = []
     label_list = []
-    for i, image_path in enumerate(image_files, 1):
-        filename = os.path.basename(image_path)
-        progress_label.configure(text=f"Processing: {i}/{len(image_files)} images") if ctk else progress_label.config(text=f"Processing: {i}/{len(image_files)} images")
+    for i, item in enumerate(image_items, 1):
+        if dataset_source == "Local":
+            image_path = item
+            filename = os.path.basename(image_path)
+            try:
+                image = Image.open(image_path)
+            except Exception as e:
+                failed.append(f"{filename}: {str(e)}")
+                continue
+            label = os.path.basename(os.path.dirname(image_path))
+        else:
+            idx = item
+            image, label_idx = dataset[idx]
+            filename = f"image_{i}.jpg"
+            label = classes[label_idx]
+
+        progress_label.configure(text=f"Processing: {i}/{len(image_items)} images") if ctk else progress_label.config(text=f"Processing: {i}/{len(image_items)} images")
         file_label.configure(text=f"Current file: {filename}") if ctk else file_label.config(text=f"Current file: {filename}")
         if ctk:
-            progress_bar.set(i / len(image_files))
+            progress_bar.set(i / len(image_items))
         else:
             progress_bar["value"] = i
         root.update()
         try:
-            image_tensor = preprocess_image(image_path, transform_choice, mode.get(), target_size, use_rgb)
+            image_tensor = preprocess_image(image, transform_choice, mode.get(), target_size, use_rgb)
             with torch.no_grad():
                 selected_model(image_tensor)
             if hook_fn.output is not None:
-                out_folder = Path("features") / selected_model_name / f"{layer_name} ({transform_choice})" / os.path.relpath(os.path.dirname(image_path), folder_path)
+                out_folder = Path("features") / selected_model_name / f"{layer_name} ({transform_choice})" / label
                 out_folder.mkdir(parents=True, exist_ok=True)
                 save_path = out_folder / f"{os.path.splitext(filename)[0]}.npy"
                 np.save(save_path, hook_fn.output)
                 saved_file_paths.append(str(save_path.relative_to("features")))
                 feature_list.append(to_gpu(hook_fn.output.flatten()))
-                label_list.append(os.path.basename(os.path.dirname(image_path)))
+                label_list.append(label)
         except Exception as e:
             failed.append(f"{filename}: {str(e)}")
 
@@ -304,7 +358,7 @@ def extract_features(layer_name, arch_window=None):
         try:
             features_array = to_cpu(np.vstack([to_cpu(f) for f in feature_list]))
             labels_array = np.array(label_list)
-            npz_save_path = Path("features") / selected_model_name / f"{layer_name} ({transform_choice})" / f"{selected_model_name}_{layer_name}_{transform_choice}_all_classes.npz"
+            npz_save_path = Path("features") / selected_model_name / f"{layer_name} ({transform_choice})" / f"{selected_model_name}_{layer_name}_{transform_choice}_all_classes_{dataset_name}.npz"
             npz_save_path.parent.mkdir(parents=True, exist_ok=True)
             np.savez(npz_save_path, features=features_array, labels=labels_array)
             npz_file_path = str(npz_save_path.resolve())
@@ -400,6 +454,9 @@ def show_model_architecture():
 def select_pretrained_model(name):
     """Select a pretrained model."""
     global selected_model, selected_model_name, npz_file_path
+    # Load model on-demand if not already loaded
+    if name not in PRETRAINED_MODELS:
+        PRETRAINED_MODELS[name] = get_model(name, download_weights)
     selected_model = PRETRAINED_MODELS[name]
     selected_model.eval()
     selected_model_name = name
@@ -407,6 +464,7 @@ def select_pretrained_model(name):
     logging.debug(f"Selected pretrained model: {name}")
     compute_layer_shapes()
     messagebox.showinfo("Model Selected", f"Loaded pretrained model: {name}")
+
 
 def show_model_file_contents(file_path):
     """Display contents of a model definition file."""
@@ -548,7 +606,7 @@ def run_visualisation():
         logging.debug(f"Launching NpyVisualizerApp with: {npz_file_path}")
         viz_window = ctk.CTkToplevel(root) if ctk else tk.Toplevel(root)
         viz_window.title("CNN Embedding Analysis")
-        app = NpyVisualizerApp(viz_window, dim_var.get(), algo_var.get(), dis_var.get() ,npz_file_path)
+        app = NpyVisualizerApp(viz_window, dim_var.get(), algo_var.get(), dis_var.get(), npz_file_path)
     except Exception as e:
         logging.error(f"Failed to launch visualization: {e}")
         messagebox.showerror("Error", f"Failed to launch visualization: {str(e)}")
@@ -566,7 +624,7 @@ def main_screen():
         style.configure("TLabel", font=("Segoe UI", 10), background="#f7f9fc")
         style.configure("TButton", font=("Segoe UI", 10), padding=6)
         style.configure("TCheckbutton", font=("Segoe UI", 10))
-        style.configure("TCombobox", padding=6)
+        style.configure("TCombobox", font=("Segoe UI", 10), padding=6)
         style.configure("Modern.TLabelframe", background="#ffffff", borderwidth=1, relief="solid")
         style.configure("Modern.TLabelframe.Label", background="#ffffff", font=("Segoe UI", 11, "bold"))
 
@@ -588,9 +646,18 @@ def main_screen():
         for widget in model_frame.winfo_children():
             widget.destroy()
         if mode.get() == "Pretrained":
-            for name in PRETRAINED_MODELS:
-                (ctk.CTkButton(model_frame, text=name, command=lambda n=name: select_pretrained_model(n)) if ctk else
-                 ttk.Button(model_frame, text=name, command=lambda n=name: select_pretrained_model(n))).pack(pady=4, fill="x")
+            # Create dropdown for pretrained models
+            (ctk.CTkLabel(model_frame, text="Select Pretrained Model:") if ctk else
+             ttk.Label(model_frame, text="Select Pretrained Model:")).pack(pady=(10, 3))
+            model_var = ctk.StringVar(value="Select a model") if ctk else tk.StringVar(value="Select a model")
+            model_names = sorted(MODELS_DICT.keys())  # Sort for better UX
+            (ctk.CTkOptionMenu(model_frame, variable=model_var, values=["Select a model"] + model_names,
+                               command=lambda name: select_pretrained_model(name) if name != "Select a model" else None) if ctk else
+             ttk.Combobox(model_frame, textvariable=model_var, values=["Select a model"] + model_names,
+                          state="readonly")).pack(pady=5, padx=20, fill="x")
+            if not ctk:
+                model_frame.children["!combobox"].bind("<<ComboboxSelected>>",
+                    lambda e: select_pretrained_model(model_var.get()) if model_var.get() != "Select a model" else None)
         else:
             (ctk.CTkButton(model_frame, text="Select Model Definition (.py)", command=select_model_file) if ctk else
              ttk.Button(model_frame, text="Select Model Definition (.py)", command=select_model_file)).pack(pady=5, fill="x")
@@ -638,8 +705,9 @@ def main_screen():
     (ctk.CTkButton(vis_frame, text="Run Embedding Analysis", command=run_visualisation) if ctk else
      ttk.Button(vis_frame, text="Run Embedding Analysis", command=run_visualisation)).pack(pady=15)
 
+
     root.mainloop()
+
 
 if __name__ == "__main__":
     main_screen()
-
