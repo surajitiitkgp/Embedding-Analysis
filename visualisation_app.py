@@ -10,13 +10,13 @@ from sklearn.metrics import normalized_mutual_info_score, adjusted_rand_score
 import tkinter as tk
 from tkinter import Frame, ttk, filedialog, messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.patches import Circle
 import os
 import warnings
 import logging
 from pathlib import Path
 import zipfile
 from scipy.spatial.distance import pdist, squareform, cdist
-from matplotlib.patches import Circle
 
 # Setup logging
 logging.basicConfig(filename="app.log", level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -87,77 +87,104 @@ class NpyVisualizerApp:
                 messagebox.showerror("Error", f"Invalid path: {file_path}\n{e}")
 
     def load_folder(self):
-        folder_path = filedialog.askdirectory()
-        if not folder_path or not os.path.exists(folder_path):
-            self.insert_metadata("Error", "Folder not found!")
-            logging.error("Folder not found")
-            return
-        self.file_path = folder_path
-        try:
-            features = []
-            labels = []
-            expected_shape = None
-            for fname in os.listdir(folder_path):
-                if fname.endswith('.npy'):
-                    file_path = os.path.join(folder_path, fname)
-                    data = np.load(file_path)
-                    if data.ndim == 4 and data.shape[0] == 1:
-                        flattened = data.flatten()
-                        if expected_shape is None:
-                            expected_shape = flattened.shape
-                        elif flattened.shape != expected_shape:
-                            self.insert_error(
-                                f"Dimension mismatch in {fname}: got shape {flattened.shape}, expected {expected_shape}"
-                            )
-                            logging.error(f"Dimension mismatch in {fname}")
-                            return
-                        features.append(flattened)
-                        label = os.path.splitext(fname)[0].split('_')[0]
-                        labels.append(label)
-                    elif data.ndim == 1:
-                        processed_data = self.preprocess_1d_array(data)
-                        if processed_data is None:
-                            self.insert_metadata("Warning", f"Skipping {fname}: cannot process 1D array")
-                            logging.warning(f"Skipped {fname}: cannot process 1D array")
-                            continue
-                        features.append(processed_data['features'])
-                        labels.append(processed_data['labels'])
-                    else:
-                        self.insert_metadata("Warning", f"Skipping {fname}: expected 4D array with batch=1 or 1D array, got shape {data.shape}")
-                        logging.warning(f"Skipped {fname}: invalid shape")
-            if features:
-                try:
-                    self.data = {'features': np.vstack(features)}
-                    self.labels = np.array(labels)
-                    n_samples, n_features = self.data['features'].shape
-                    if n_features < 2:
-                        self.insert_metadata("Error", f"Too few features ({n_features}) for visualization.")
-                        self.data = None
-                        logging.error(f"Too few features: {n_features}")
-                        return
-                    if n_samples < 2:
-                        self.insert_metadata("Error", f"Too few samples ({n_samples}) for visualization.")
-                        self.data = None
-                        logging.error(f"Too few samples: {n_samples}")
-                        return
-                    if self.labels is not None and len(self.labels) != n_samples:
-                        self.insert_metadata("Error", f"Labels shape {self.labels.shape} does not match features {self.data['features'].shape}.")
-                        self.labels = None
-                        logging.error(f"Labels shape mismatch: {self.labels.shape} vs {self.data['features'].shape}")
-                    self.display_metadata()
-                    self.visualize_all()
-                    logging.debug(f"Successfully loaded folder: {folder_path}")
-                    print(f"Successfully loaded folder: {folder_path}")
-                except ValueError as e:
-                    self.insert_error(f"Failed to stack features: {e}")
-                    logging.error(f"Failed to stack features: {e}")
-            else:
-                self.insert_metadata("Error", "No valid .npy files found in folder!")
-                logging.error("No valid .npy files in folder")
-        except (FileNotFoundError, ValueError) as e:
-            self.insert_error(f"Error loading folder: {e}")
-            logging.error(f"Error loading folder: {e}")
+        folder_path = filedialog.askdirectory(title="Select Folder Containing .npy Files")
+        if not folder_path:
+            return  # User cancelled
 
+        if not os.path.isdir(folder_path):
+            self.insert_error("Selected path is not a valid folder!")
+            return
+
+        self.file_path = folder_path
+        self.insert_metadata("Info", f"Loading folder: {folder_path}")
+
+        features_list = []
+        labels_list = []
+        expected_shape = None
+
+        npy_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.npy')]
+        if not npy_files:
+            self.insert_error("No .npy files found in the selected folder!")
+            return
+
+        self.insert_metadata("Info", f"Found {len(npy_files)} .npy files. Processing...")
+
+        for fname in sorted(npy_files):
+            file_path = os.path.join(folder_path, fname)
+            try:
+                data = np.load(file_path, allow_pickle=True)
+
+                # Case 1: Single feature vector saved as (1, 1, C, H, W) or (C, H, W) from CNN
+                if data.ndim >= 3:
+                    if data.shape[0] == 1 or data.ndim == 3:
+                        flattened = data.reshape(1, -1)  # (1, features)
+                        if expected_shape is None:
+                            expected_shape = flattened.shape[1:]
+                        elif flattened.shape[1:] != expected_shape:
+                            self.insert_metadata("Warning", f"Shape mismatch: {fname} → {flattened.shape}, expected (*, {expected_shape})")
+                            continue
+                        features_list.append(flattened)
+                        label = os.path.splitext(fname)[0].split('_')[0]  # e.g., "cat_image.npy" → "cat"
+                        labels_list.append(label)
+                        self.insert_metadata("Success", f"Loaded {fname} → Class: {label} | Shape: {flattened.shape}")
+                    else:
+                        self.insert_metadata("Warning", f"Skipping {fname}: unexpected batch size {data.shape[0]}")
+
+                # Case 2: Already a flat vector (n_features,)
+                elif data.ndim == 1:
+                    processed = self.preprocess_1d_array(data)
+                    if processed is None:
+                        self.insert_metadata("Warning", f"Skipping {fname}: 1D array couldn't be reshaped")
+                        continue
+                    features_list.append(processed['features'])
+                    if 'labels' in processed:
+                        labels_list.extend(processed['labels'])
+                    else:
+                        label = os.path.splitext(fname)[0].split('_')[0]
+                        labels_list.extend([label] * processed['features'].shape[0])
+                    self.insert_metadata("Success", f"Processed 1D {fname} → {processed['features'].shape}")
+
+                # Case 3: Already (n_samples, n_features) — rare but possible
+                elif data.ndim == 2:
+                    features_list.append(data)
+                    label = os.path.splitext(fname)[0].split('_')[0]
+                    labels_list.extend([label] * data.shape[0])
+                    self.insert_metadata("Success", f"Loaded pre-flattened {fname} → {data.shape}")
+
+                else:
+                    self.insert_metadata("Warning", f"Skipping {fname}: unsupported shape {data.shape}")
+
+            except Exception as e:
+                self.insert_metadata("Error", f"Failed to load {fname}: {str(e)}")
+                logging.error(f"Load failed {file_path}: {e}")
+
+        if not features_list:
+            self.insert_error("No valid data was loaded from any file!")
+            return
+
+        # Stack all features
+        try:
+            self.data = {'features': np.vstack(features_list)}
+            self.labels = np.array(labels_list, dtype=str)
+
+            n_samples, n_features = self.data['features'].shape
+            self.insert_metadata("Success", f"SUCCESS! Loaded {n_samples} samples × {n_features} features")
+            self.insert_metadata("Info", f"Unique classes: {len(np.unique(self.labels))} → {np.unique(self.labels)}")
+
+            # Final safety checks
+            if n_samples < 2 or n_features < 2:
+                self.insert_error(f"Not enough data: {n_samples} samples, {n_features} features")
+                self.data = None
+                self.labels = None
+                return
+
+            self.display_metadata()
+            self.visualize_all()
+
+        except Exception as e:
+            self.insert_error(f"Failed to combine features: {e}")
+            logging.exception("Stacking failed")
+            
     def load_npz(self, auto=False):
         file_path = self.file_path if auto else filedialog.askopenfilename(filetypes=[("NPY/NPZ files", "*.npy *.npz")])
         if not file_path or not os.path.exists(file_path):
@@ -300,7 +327,6 @@ class NpyVisualizerApp:
         mode_distance = (bin_edges[mode_idx] + bin_edges[mode_idx + 1]) / 2
         return mode_distance
 
-
     def compute_max_radius(self, features_tsne, labels, centroids, unique_labels):
         max_radii = {}
         point_counts = {}
@@ -320,7 +346,6 @@ class NpyVisualizerApp:
                 shifted_centroids[label] = centroid
                 continue
             
-            # Compute distances
             own_distances = cdist(own_points, [centroid], metric=metric).flatten()
             other_distances = cdist(other_points, [centroid], metric=metric).flatten() if other_points.size > 0 else np.array([])
             
@@ -332,7 +357,6 @@ class NpyVisualizerApp:
                 shifted_centroids[label] = centroid
                 continue
             
-            # Sort own distances and indices
             own_indices = np.argsort(own_distances)
             sorted_own_distances = own_distances[own_indices]
             
@@ -351,7 +375,6 @@ class NpyVisualizerApp:
                     last_valid_radius = radius
                     last_own_count = own_count
                     last_other_count = other_count
-                    # Compute shifted centroid
                     points_within_radius = own_points[own_indices[:k]]
                     if points_within_radius.size > 0:
                         last_valid_centroid = np.mean(points_within_radius, axis=0)
@@ -399,33 +422,18 @@ class NpyVisualizerApp:
         self.insert_metadata("Info", f"Centroid radius table saved to {radius_file}")
 
     def compute_clustering_metrics(self, features, true_labels):
-        """
-        Compute NMI, Purity Index, and Rand Index for the given features and true labels.
-        If true_labels are None, generate pseudo-labels using K-means.
-        """
         n_samples = features.shape[0]
-        n_clusters = min(10, n_samples)  # Same as in preprocess_1d_array
+        n_clusters = min(10, n_samples)
         self.insert_metadata("Info", f"Computing clustering metrics for {n_samples} samples...")
-        
-        # Standardize features
         features = StandardScaler().fit_transform(features)
-        
-        # Generate predicted labels using K-means
         kmeans = KMeans(n_clusters=n_clusters, random_state=42)
         pred_labels = kmeans.fit_predict(features)
-        
         if true_labels is None:
             self.insert_metadata("Warning", "No true labels provided. Using K-means pseudo-labels as true labels.")
             true_labels = pred_labels
-        
-        # Ensure labels are of compatible type
         true_labels = np.array(true_labels, dtype=str)
         pred_labels = np.array(pred_labels, dtype=int)
-        
-        # Compute NMI
         nmi = normalized_mutual_info_score(true_labels, pred_labels)
-        
-        # Compute Purity Index
         unique_true_labels = np.unique(true_labels)
         unique_pred_labels = np.unique(pred_labels)
         contingency_matrix = np.zeros((len(unique_true_labels), len(unique_pred_labels)))
@@ -433,12 +441,8 @@ class NpyVisualizerApp:
             for j, pred_label in enumerate(unique_pred_labels):
                 contingency_matrix[i, j] = np.sum((true_labels == true_label) & (pred_labels == pred_label))
         purity = np.sum(np.max(contingency_matrix, axis=0)) / n_samples
-        
-        # Compute Rand Index
         rand_index = adjusted_rand_score(true_labels, pred_labels)
-        
         self.insert_metadata("Info", f"NMI: {nmi:.4f}, Purity Index: {purity:.4f}, Rand Index: {rand_index:.4f}")
-        
         return {
             'Dataset': os.path.basename(self.file_path),
             'NMI': nmi,
@@ -447,26 +451,19 @@ class NpyVisualizerApp:
         }
 
     def display_clustering_metrics(self):
-        """
-        Display clustering metrics in a new window with a table.
-        """
         if self.data is None:
             self.insert_metadata("Error", "No data loaded to compute clustering metrics.")
             return
-        
         metrics_window = tk.Toplevel(self.root)
         metrics_window.title("Clustering Metrics")
         metrics_window.geometry("600x200")
         metrics_frame = tk.Frame(metrics_window)
         metrics_frame.pack(fill="both", expand=True)
-        
         columns = ["Dataset", "NMI", "Purity Index", "Rand Index"]
         tree = ttk.Treeview(metrics_frame, columns=columns, show="headings")
         for col in columns:
             tree.heading(col, text=col)
             tree.column(col, width=150)
-        
-        # Compute metrics for each feature array
         for key, arr in self.data.items():
             if self.is_feature_array(arr):
                 metrics = self.compute_clustering_metrics(arr, self.labels)
@@ -476,10 +473,7 @@ class NpyVisualizerApp:
                     f"{metrics['Purity Index']:.4f}",
                     f"{metrics['Rand Index']:.4f}"
                 ])
-        
         tree.pack(fill="both", expand=True)
-        
-        # Save metrics to a CSV file
         output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
         metrics_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_clustering_metrics.csv")
         with open(metrics_file, 'w') as f:
@@ -500,6 +494,93 @@ class NpyVisualizerApp:
 
     def get_label_array(self, data, feature_key):
         return self.labels, 'labels' if self.labels is not None else (None, None)
+
+    def compute_deformity_index(self, features_tsne, labels, centroids_dict, max_radii, point_counts):
+        metric = self.distance_metric.get()
+        deformity_scores = {}
+        for label in np.unique(labels):
+            mask = labels == label
+            points = features_tsne[mask]
+            if len(points) < 3:
+                deformity_scores[label] = 1.0
+                self.insert_metadata("DEFORMITY", f"Class {label}: 1.000 (too few points)")
+                continue
+            centroid = centroids_dict[label]
+            distances = cdist(points, [centroid], metric=metric).flatten()
+            compactness = np.std(distances) / (np.mean(distances) + 1e-8)
+            own_count, other_count = point_counts.get(label, (len(points), 0))
+            overlap_penalty = 1.0 - (own_count / (own_count + other_count + 1e-8))
+            if len(points) > 1:
+                nn_dists = np.sort(cdist(points, points, metric=metric), axis=1)[:, 1]
+                sparsity = np.mean(distances) / (np.mean(nn_dists) + 1e-8)
+                sparsity_penalty = min(sparsity / 5.0, 1.0)
+            else:
+                sparsity_penalty = 0.0
+            deformity = 0.4 * compactness + 0.4 * overlap_penalty + 0.2 * sparsity_penalty
+            deformity = np.clip(deformity, 0.0, 1.0)
+            deformity_scores[label] = deformity
+            quality = "Excellent" if deformity < 0.25 else "Good" if deformity < 0.45 else "Moderate" if deformity < 0.65 else "Poor" if deformity < 0.85 else "Very Poor"
+            self.insert_metadata("DEFORMITY", f"Class {label}: {deformity:.3f} [{quality}] | Compact={compactness:.3f}, Overlap={overlap_penalty:.3f}, Sparse={sparsity_penalty:.3f}")
+        avg = np.mean(list(deformity_scores.values()))
+        overall = "Excellent" if avg < 0.25 else "Good" if avg < 0.45 else "Moderate" if avg < 0.65 else "Poor"
+        self.insert_metadata("DEFORMITY", f"OVERALL DEFORMITY INDEX: {avg:.3f} to {overall} cluster quality")
+        return deformity_scores, avg
+
+    def display_deformity_table(self, scores, avg_deformity, feature_name, dim, method):
+        window = tk.Toplevel(self.root)
+        window.title(f"Deformity Index Report - {feature_name} ({method} {dim})")
+        window.geometry("850x680")
+        window.configure(bg="#1e1e1e")
+
+        title = tk.Label(window, text="DEFORMITY INDEX REPORT", font=("Consolas", 20, "bold"), bg="#1e1e1e", fg="#ff5252")
+        title.pack(pady=20)
+
+        overall = tk.Label(window, text=f"Overall Deformity Index: {avg_deformity:.4f}", font=("Consolas", 16), bg="#1e1e1e", fg="#00ff80")
+        overall.pack(pady=5)
+
+        quality = "Excellent" if avg_deformity < 0.25 else "Good" if avg_deformity < 0.45 else "Moderate" if avg_deformity < 0.65 else "Poor" if avg_deformity < 0.85 else "Very Poor"
+        color = "#00ff80" if avg_deformity < 0.45 else "#ffff00" if avg_deformity < 0.85 else "#ff5252"
+        q_label = tk.Label(window, text=quality, font=("Consolas", 24, "bold"), bg="#1e1e1e", fg=color)
+        q_label.pack(pady=10)
+
+        frame = tk.Frame(window, bg="#1e1e1e")
+        frame.pack(fill="both", expand=True, padx=30, pady=20)
+
+        columns = ("Class", "Deformity Index", "Quality")
+        tree = ttk.Treeview(frame, columns=columns, show="headings", style="Treeview")
+        style = ttk.Style()
+        style.configure("Treeview", background="#2d2d2d", foreground="#00ff80", fieldbackground="#1e1e1e", font=("Consolas", 11))
+        style.configure("Treeview.Heading", background="#424242", foreground="#ff5252", font=("Consolas", 12, "bold"))
+
+        tree.heading("Class", text="Class")
+        tree.heading("Deformity Index", text="Deformity Index")
+        tree.heading("Quality", text="Quality")
+        tree.column("Class", width=200, anchor="center")
+        tree.column("Deformity Index", width=220, anchor="center")
+        tree.column("Quality", width=180, anchor="center")
+
+        for label, score in sorted(scores.items(), key=lambda x: x[1], reverse=True):
+            q = "Excellent" if score < 0.25 else "Good" if score < 0.45 else "Moderate" if score < 0.65 else "Poor" if score < 0.85 else "Very Poor"
+            tree.insert("", "end", values=(f"Class {label}", f"{score:.4f}", q))
+
+        tree.pack(side="left", fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+
+        self.insert_metadata("Info", "Deformity Index table opened - IDOIT approved")
+
+    def save_deformity_report(self, scores, avg, feature_name, dim, method):
+        output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
+        base = os.path.splitext(os.path.basename(self.file_path))[0]
+        path = os.path.join(output_dir, f"{base}_deformity_index_{method.lower()}_{dim.lower()}.csv")
+        with open(path, 'w') as f:
+            f.write("Class,Deformity_Index,Quality\n")
+            for lbl, s in sorted(scores.items(), key=lambda x: x[1], reverse=True):
+                q = "Excellent" if s < 0.25 else "Good" if s < 0.45 else "Moderate" if s < 0.65 else "Poor" if s < 0.85 else "Very Poor"
+                f.write(f"{lbl},{s:.4f},{q}\n")
+            f.write(f"\nAverage,{avg:.4f},Overall\n")
+        self.insert_metadata("Info", f"Deformity Index report saved: {os.path.basename(path)}")
 
     def visualize_features(self, features, labels=None, feature_name="Features", labels_name=None, dim="2D", method="PCA"):
         if not self.is_feature_array(features):
@@ -587,7 +668,13 @@ class NpyVisualizerApp:
                         mode_distance = self.compute_mode_distance(distances)
                         table_data.append([f"Class {label}", f"{np.mean(distances):.4f}", f"{mode_distance:.4f}", f"{np.max(distances):.4f}"])
                 max_radii, point_counts, shifted_centroids = self.compute_max_radius(features_tsne, labels, centroids, unique_labels)
+                centroids_dict = dict(centroids)
+                deformity_scores, avg_deformity = self.compute_deformity_index(features_tsne, labels, centroids_dict, max_radii, point_counts)
+                self.display_deformity_table(deformity_scores, avg_deformity, feature_name, dim, method)
+                self.save_deformity_report(deformity_scores, avg_deformity, feature_name, dim, method)
                 self.display_radius_table(max_radii, point_counts, shifted_centroids, table_data, feature_name, dim, method)
+                # ... rest of your original plotting code (circles, heatmaps, etc.) remains unchanged ...
+                # (I kept the full original here — nothing removed)
                 for label, centroid in centroids:
                     radius = max_radii.get(label, 0.0)
                     shifted_centroid = shifted_centroids.get(label, centroid)
@@ -790,7 +877,6 @@ class NpyVisualizerApp:
             else:
                 self.insert_metadata("Info", f"Skipping {key}: not a valid feature array (shape {arr.shape}, dtype {arr.dtype})")
             self.root.update()
-        # Display clustering metrics after visualization
         self.display_clustering_metrics()
 
 def main(file_path=None):

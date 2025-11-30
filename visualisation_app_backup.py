@@ -332,51 +332,32 @@ class NpyVisualizerApp:
                 shifted_centroids[label] = centroid
                 continue
             
-            # Compute the maximum distance for own points
-            max_own_distance = np.max(own_distances) if own_distances.size > 0 else 0.0
-            
-            # Use only distances up to max_own_distance
-            all_distances = np.concatenate([own_distances, other_distances]) if other_distances.size > 0 else own_distances
-            unique_distances = np.unique(all_distances)
-            unique_distances = unique_distances[(unique_distances > 0) & (unique_distances <= max_own_distance)]  # Cap at max_own_distance
-            unique_distances = np.sort(unique_distances)
+            # Sort own distances and indices
+            own_indices = np.argsort(own_distances)
+            sorted_own_distances = own_distances[own_indices]
             
             last_valid_radius = 0.0
             last_own_count = 0
             last_other_count = 0
             last_valid_centroid = centroid
             
-            # Check each unique distance up to max_own_distance
-            for radius in unique_distances:
-                own_count = np.sum(own_distances <= radius) if own_distances.size > 0 else 0
-                other_count = np.sum(other_distances <= radius) if other_distances.size > 0 else 0
-                self.insert_metadata("Debug", f"Class {label}, Radius {radius:.4f}: own_count={own_count}, other_count={other_count}")
+            for k in range(1, len(sorted_own_distances) + 1):
+                radius = sorted_own_distances[k - 1]
+                own_count = k
+                other_count = np.sum(other_distances <= radius)
+                self.insert_metadata("Debug", f"Class {label}, k={k}, Radius {radius:.4f}: own_count={own_count}, other_count={other_count}")
+                
                 if own_count > other_count:
                     last_valid_radius = radius
                     last_own_count = own_count
                     last_other_count = other_count
-                    # Compute shifted centroid for this radius
-                    within_radius_mask = own_distances <= radius
-                    points_within_radius = own_points[within_radius_mask]
+                    # Compute shifted centroid
+                    points_within_radius = own_points[own_indices[:k]]
                     if points_within_radius.size > 0:
                         last_valid_centroid = np.mean(points_within_radius, axis=0)
                     else:
                         self.insert_metadata("Warning", f"Class {label}: No points within radius {radius:.4f}. Keeping original centroid.")
                         last_valid_centroid = centroid
-            
-            # Fallback: If no radius satisfies own_count > other_count, use max_own_distance
-            if last_valid_radius == 0.0 and own_distances.size > 0:
-                self.insert_metadata("Warning", f"Class {label}: No radius where own_count > other_count. Using max_own_distance.")
-                last_valid_radius = max_own_distance
-                last_own_count = np.sum(own_distances <= last_valid_radius) if own_distances.size > 0 else 0
-                last_other_count = np.sum(other_distances <= last_valid_radius) if other_distances.size > 0 else 0
-                within_radius_mask = own_distances <= last_valid_radius
-                points_within_radius = own_points[within_radius_mask]
-                if points_within_radius.size > 0:
-                    last_valid_centroid = np.mean(points_within_radius, axis=0)
-                else:
-                    self.insert_metadata("Warning", f"Class {label}: No points within max_own_distance. Using original centroid.")
-                    last_valid_centroid = centroid
             
             max_radii[label] = last_valid_radius
             point_counts[label] = (last_own_count, last_other_count)

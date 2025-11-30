@@ -51,7 +51,7 @@ except ImportError:
     from tkinter import ttk
     ctk = None
 from tkinter import filedialog, messagebox
-from visualisation_semi_finalxxx import NpyVisualizerApp  # Import the optimized NpyVisualizerApp
+from visualisation_app import NpyVisualizerApp  # Import the optimized NpyVisualizerApp
 
 # Setup logging
 logging.basicConfig(filename="app.log", level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
