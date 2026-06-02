@@ -185,16 +185,4 @@ python visualisation_app.py
 
 ---
 
-## 📝 Citation
 
-If you use this framework or diagnostic metrics in your research, please cite our paper:
-
-```bibtex
-@article{patra2026interactive,
-  title={An Interactive Tool for Deep Learning Model Diagnostics and Embedding Analysis},
-  author={Patra, Sayantan and One, Co-author and Two, Co-author},
-  journal={IEEE Transactions},
-  year={2026},
-  publisher={IEEE}
-}
-```
