@@ -1,8 +1,9 @@
-numpy 
-matplotlib 
-seaborn 
-scikit-learn 
-tk 
-pillow 
-cupy
+torch
+torchvision
+scipy
+numpy
+matplotlib
+seaborn
+scikit-learn
+pillow
 customtkinter

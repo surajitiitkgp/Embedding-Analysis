@@ -537,7 +537,10 @@ class NpyVisualizerApp:
         self.insert_metadata("Info", f"Generating {dim} t-SNE plot (perplexity={perplexity})...")
         self.root.update()
         try:
-            tsne = TSNE(n_components=n_components, perplexity=perplexity, n_iter=1000, random_state=42, n_jobs=-1)
+            try:
+                tsne = TSNE(n_components=n_components, perplexity=perplexity, max_iter=1000, random_state=42, n_jobs=-1)
+            except TypeError:
+                tsne = TSNE(n_components=n_components, perplexity=perplexity, n_iter=1000, random_state=42, n_jobs=-1)
             features_tsne = tsne.fit_transform(features)
             fig = plt.figure(figsize=(20, 8))
             if dim == "2D":

@@ -11,3 +11,10 @@ test1.py
 vis_nmi_andall.py
 visualisation_semi_finalxxx.py
 /data
+app_backup.py
+embedding_analysis_paper.tex
+generate_tsne_plot.py
+references.bib
+tsne_diagnostic_plot.png
+visualisation_app_backup.py
+/data

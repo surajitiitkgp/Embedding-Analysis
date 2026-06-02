@@ -1,3 +1,4 @@
+
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -26,49 +27,126 @@ class NpyVisualizerApp:
     def __init__(self, root, dim_options="2D", algo_options="PCA", dis_opt="euclidean", file_path=None):
         self.root = root
         self.root.title("CNN Embedding Analysis for Semantic Relationships")
-        self.root.geometry("1200x800")
-        self.frame = Frame(self.root)
-        self.frame.pack(padx=10, pady=10, fill="both", expand=True)
-        self.frame.columnconfigure(0, weight=1)
-        self.frame.columnconfigure(1, weight=1)
-        self.frame.rowconfigure(0, weight=0)
-        self.frame.rowconfigure(1, weight=0)
-        self.frame.rowconfigure(2, weight=0)
-        self.frame.rowconfigure(3, weight=0)
-        self.frame.rowconfigure(4, weight=0)
-        self.frame.rowconfigure(5, weight=1)
+        self.root.geometry("1400x900")
+        self.root.configure(bg="#121212")
         
+        # Setup modern dark theme ttk styling
+        self.setup_styles()
+
+        # Main Layout Grid configuration
+        self.root.columnconfigure(0, weight=0)
+        self.root.columnconfigure(1, weight=1)
+        self.root.rowconfigure(0, weight=1)
+
+        # Create Left Sidebar Frame
+        self.sidebar = tk.Frame(self.root, bg="#1e1e1e", width=380, padx=15, pady=15)
+        self.sidebar.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
+        self.sidebar.grid_propagate(False) # Keep width fixed
+
+        # Sidebar Title
+        title_label = tk.Label(self.sidebar, text="EMBEDDING VISUALIZER", font=("Segoe UI", 16, "bold"), bg="#1e1e1e", fg="#00adb5")
+        title_label.pack(anchor="w", pady=(0, 15))
+
+        # Config Panel (using LabelFrame styled for dark theme)
+        self.controls_frame = tk.LabelFrame(self.sidebar, text="Configuration", font=("Segoe UI", 10, "bold"),
+                                            bg="#1e1e1e", fg="#00adb5", bd=1, relief="solid", padx=10, pady=10)
+        self.controls_frame.pack(fill="x", pady=(0, 15))
+
+        # Setup Config variables
         self.dim = tk.StringVar(value=dim_options)
-        self.dropdown_label1 = tk.Label(self.frame, text="Choose Dimension:")
-        self.dropdown_label1.grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.dropdown_dim = tk.OptionMenu(self.frame, self.dim, "2D", "3D")
-        self.dropdown_dim.grid(row=0, column=1, padx=5, pady=5, sticky="w")
         self.opt = tk.StringVar(value=algo_options)
-        self.dropdown_label = tk.Label(self.frame, text="Choose Reduction Method:")
-        self.dropdown_label.grid(row=1, column=0, padx=5, pady=5, sticky="e")
-        self.dropdown_opt = tk.OptionMenu(self.frame, self.opt, "PCA", "TruncatedSVD")
-        self.dropdown_opt.grid(row=1, column=1, padx=5, pady=5, sticky="w")
         self.distance_metric = tk.StringVar(value=dis_opt)
-        self.dropdown_label_distance = tk.Label(self.frame, text="Choose Distance Metric:")
-        self.dropdown_label_distance.grid(row=2, column=0, padx=5, pady=5, sticky="e")
-        self.dropdown_distance = tk.OptionMenu(self.frame, self.distance_metric, "euclidean", "cosine", "cityblock", "canberra")
-        self.dropdown_distance.grid(row=2, column=1, padx=5, pady=5, sticky="w")
-        self.btn_load_folder = tk.Button(self.frame, text="Load Folder of NPY Files", command=self.load_folder)
-        self.btn_load_folder.grid(row=3, column=0, padx=5, pady=5, sticky="ew")
-        self.btn_load_file = tk.Button(self.frame, text="Load NPZ File", command=self.load_npz)
-        self.btn_load_file.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
-        self.metadata_text = tk.Text(self.frame, height=12, width=50)
-        self.metadata_text.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-        self.scrollbar = tk.Scrollbar(self.frame, command=self.metadata_text.yview)
-        self.scrollbar.grid(row=4, column=2, sticky="ns")
+
+        # Dimension Dropdown
+        lbl_dim = tk.Label(self.controls_frame, text="Dimension:", font=("Segoe UI", 9), bg="#1e1e1e", fg="#ffffff")
+        lbl_dim.grid(row=0, column=0, sticky="w", pady=5)
+        self.dropdown_dim = tk.OptionMenu(self.controls_frame, self.dim, "2D", "3D")
+        self.dropdown_dim.config(bg="#2d2d2d", fg="#ffffff", activebackground="#3d3d3d", activeforeground="#ffffff",
+                                 font=("Segoe UI", 9), bd=0, highlightthickness=0)
+        self.dropdown_dim["menu"].config(bg="#2d2d2d", fg="#ffffff", activebackground="#00adb5", activeforeground="#ffffff")
+        self.dropdown_dim.grid(row=0, column=1, sticky="ew", padx=(10, 0), pady=5)
+
+        # Reduction Method Dropdown
+        lbl_opt = tk.Label(self.controls_frame, text="Reduction Method:", font=("Segoe UI", 9), bg="#1e1e1e", fg="#ffffff")
+        lbl_opt.grid(row=1, column=0, sticky="w", pady=5)
+        self.dropdown_opt = tk.OptionMenu(self.controls_frame, self.opt, "PCA", "TruncatedSVD")
+        self.dropdown_opt.config(bg="#2d2d2d", fg="#ffffff", activebackground="#3d3d3d", activeforeground="#ffffff",
+                                 font=("Segoe UI", 9), bd=0, highlightthickness=0)
+        self.dropdown_opt["menu"].config(bg="#2d2d2d", fg="#ffffff", activebackground="#00adb5", activeforeground="#ffffff")
+        self.dropdown_opt.grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=5)
+
+        # Distance Metric Dropdown
+        lbl_dist = tk.Label(self.controls_frame, text="Distance Metric:", font=("Segoe UI", 9), bg="#1e1e1e", fg="#ffffff")
+        lbl_dist.grid(row=2, column=0, sticky="w", pady=5)
+        self.dropdown_distance = tk.OptionMenu(self.controls_frame, self.distance_metric, "euclidean", "cosine", "cityblock", "canberra")
+        self.dropdown_distance.config(bg="#2d2d2d", fg="#ffffff", activebackground="#3d3d3d", activeforeground="#ffffff",
+                                      font=("Segoe UI", 9), bd=0, highlightthickness=0)
+        self.dropdown_distance["menu"].config(bg="#2d2d2d", fg="#ffffff", activebackground="#00adb5", activeforeground="#ffffff")
+        self.dropdown_distance.grid(row=2, column=1, sticky="ew", padx=(10, 0), pady=5)
+
+        self.controls_frame.columnconfigure(1, weight=1)
+
+        # Buttons Panel
+        self.buttons_frame = tk.Frame(self.sidebar, bg="#1e1e1e")
+        self.buttons_frame.pack(fill="x", pady=(0, 15))
+
+        self.btn_load_folder = tk.Button(self.buttons_frame, text="Load Folder of NPY Files", command=self.load_folder)
+        self.btn_load_folder.pack(fill="x", side="top", pady=(0, 8))
+        self.style_button(self.btn_load_folder, bg_color="#00adb5", hover_color="#00f5d4")
+
+        self.btn_load_file = tk.Button(self.buttons_frame, text="Load NPZ File", command=self.load_npz)
+        self.btn_load_file.pack(fill="x", side="top")
+        self.style_button(self.btn_load_file, bg_color="#3a3b3c", hover_color="#5a5b5c")
+
+        # Console Log Panel
+        lbl_console = tk.Label(self.sidebar, text="Console Output Logs", font=("Segoe UI", 10, "bold"), bg="#1e1e1e", fg="#ffffff")
+        lbl_console.pack(anchor="w", pady=(0, 5))
+
+        console_frame = tk.Frame(self.sidebar, bg="#1e1e1e")
+        console_frame.pack(fill="both", expand=True)
+
+        self.metadata_text = tk.Text(console_frame, bg="#121212", fg="#a9b7c6", insertbackground="#ffffff",
+                                     font=("Consolas", 9), bd=0, wrap="word")
+        self.metadata_text.pack(side="left", fill="both", expand=True)
+
+        self.scrollbar = tk.Scrollbar(console_frame, command=self.metadata_text.yview)
+        self.scrollbar.pack(side="right", fill="y")
         self.metadata_text.config(yscrollcommand=self.scrollbar.set)
-        self.plot_frame = tk.Frame(self.frame)
-        self.plot_frame.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+
+        # Create Right Main Panel
+        self.main_panel = tk.Frame(self.root, bg="#121212")
+        self.main_panel.grid(row=0, column=1, sticky="nsew", padx=(5, 10), pady=10)
+        self.main_panel.columnconfigure(0, weight=1)
+        self.main_panel.rowconfigure(0, weight=1)
+
+        # Notebook tabs
+        self.notebook = ttk.Notebook(self.main_panel, style="Custom.TNotebook")
+        self.notebook.grid(row=0, column=0, sticky="nsew")
+
+        # Create notebook tabs
+        self.tab_plots = tk.Frame(self.notebook, bg="#1e1e1e")
+        self.tab_heatmap = tk.Frame(self.notebook, bg="#1e1e1e")
+        self.tab_radius = tk.Frame(self.notebook, bg="#1e1e1e")
+        self.tab_deformity = tk.Frame(self.notebook, bg="#1e1e1e")
+        self.tab_metrics = tk.Frame(self.notebook, bg="#1e1e1e")
+
+        self.notebook.add(self.tab_plots, text="Embedding Plots")
+        self.notebook.add(self.tab_heatmap, text="Inter-Centroid Heatmap")
+        self.notebook.add(self.tab_radius, text="Radius Analysis")
+        self.notebook.add(self.tab_deformity, text="Deformity Index")
+        self.notebook.add(self.tab_metrics, text="Clustering Metrics")
+
+        # Embed plot_frame inside tab_plots
+        self.plot_frame = tk.Frame(self.tab_plots, bg="#1e1e1e")
+        self.plot_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Initialize core variables
         self.data = None
         self.file_path = None
         self.labels = None
         self.max_samples = 1000
         self.distances_per_class = {}
+
         if file_path:
             try:
                 file_path = str(Path(file_path).resolve())
@@ -85,6 +163,38 @@ class NpyVisualizerApp:
                 self.insert_error(f"Invalid path: {file_path}: {e}")
                 logging.error(f"Invalid path: {file_path}: {e}")
                 messagebox.showerror("Error", f"Invalid path: {file_path}\n{e}")
+
+    def setup_styles(self):
+        style = ttk.Style()
+        style.theme_use('default')
+        
+        # Configure Notebook Style
+        style.configure("Custom.TNotebook", background="#121212", borderwidth=0)
+        style.configure("Custom.TNotebook.Tab", background="#2d2d2d", foreground="#ffffff",
+                        font=("Segoe UI", 10, "bold"), padding=[18, 6])
+        style.map("Custom.TNotebook.Tab",
+                  background=[("selected", "#00adb5"), ("active", "#3d3d3d")],
+                  foreground=[("selected", "#ffffff"), ("active", "#ffffff")])
+        
+        # Configure Treeview Style
+        style.configure("Treeview", background="#2d2d2d", foreground="#ffffff",
+                        fieldbackground="#2d2d2d", font=("Segoe UI", 10), rowheight=25)
+        style.configure("Treeview.Heading", background="#3d3d3d", foreground="#00adb5",
+                        font=("Segoe UI", 10, "bold"), relief="flat")
+        style.map("Treeview.Heading",
+                  background=[("active", "#4d4d4d")],
+                  foreground=[("active", "#00adb5")])
+        style.map("Treeview",
+                  background=[("selected", "#00adb5")],
+                  foreground=[("selected", "#ffffff")])
+
+    def style_button(self, btn, bg_color="#00adb5", hover_color="#00f5d4", fg_color="#ffffff"):
+        btn.config(
+            bg=bg_color, fg=fg_color, activebackground=hover_color, activeforeground=fg_color,
+            font=("Segoe UI", 10, "bold"), bd=0, relief="flat", padx=10, pady=8, cursor="hand2"
+        )
+        btn.bind("<Enter>", lambda e: btn.config(bg=hover_color))
+        btn.bind("<Leave>", lambda e: btn.config(bg=bg_color))
 
     def load_folder(self):
         folder_path = filedialog.askdirectory(title="Select Folder Containing .npy Files")
@@ -392,23 +502,38 @@ class NpyVisualizerApp:
         return max_radii, point_counts, shifted_centroids    
     
     def display_radius_table(self, max_radii, point_counts, shifted_centroids, table_data, feature_name, dim, method):
-        radius_window = tk.Toplevel(self.root)
-        radius_window.title(f"Centroid Radius Analysis: {feature_name} ({method} {dim})")
-        radius_window.geometry("800x400")
-        radius_frame = tk.Frame(radius_window)
-        radius_frame.pack(fill="both", expand=True)
+        # Clear previous widgets in tab_radius
+        for widget in self.tab_radius.winfo_children():
+            widget.destroy()
+
+        # Title
+        lbl_title = tk.Label(self.tab_radius, text=f"Centroid Radius Analysis: {feature_name} ({method} {dim})",
+                             font=("Segoe UI", 12, "bold"), bg="#1e1e1e", fg="#00adb5")
+        lbl_title.pack(anchor="w", padx=15, pady=10)
+
+        # Table container
+        table_frame = tk.Frame(self.tab_radius, bg="#1e1e1e")
+        table_frame.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+
         columns = ["Class", "Max Radius", "Own Points", "Other Points", "Mean Dist", "Mode Dist", "Max Dist", "Shifted Centroid"]
-        tree = ttk.Treeview(radius_frame, columns=columns, show="headings")
+        tree = ttk.Treeview(table_frame, columns=columns, show="headings", style="Treeview")
         for col in columns:
             tree.heading(col, text=col)
-            tree.column(col, width=100)
+            tree.column(col, width=100, anchor="center")
         for idx, label in enumerate(sorted(max_radii.keys())):
             own_count, other_count = point_counts[label]
             mean_dist, mode_dist, max_dist = table_data[idx][1:4]
             shifted_centroid = shifted_centroids[label]
             centroid_str = f"({shifted_centroid[0]:.4f}, {shifted_centroid[1]:.4f}{', ' + f'{shifted_centroid[2]:.4f}' if len(shifted_centroid) == 3 else ''})"
             tree.insert("", tk.END, values=[f"Class {label}", f"{max_radii[label]:.4f}", own_count, other_count, mean_dist, mode_dist, max_dist, centroid_str])
-        tree.pack(fill="both", expand=True)
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
         output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
         radius_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_radius_{method.lower()}_{dim.lower()}.csv")
         with open(radius_file, 'w') as f:
@@ -454,16 +579,23 @@ class NpyVisualizerApp:
         if self.data is None:
             self.insert_metadata("Error", "No data loaded to compute clustering metrics.")
             return
-        metrics_window = tk.Toplevel(self.root)
-        metrics_window.title("Clustering Metrics")
-        metrics_window.geometry("600x200")
-        metrics_frame = tk.Frame(metrics_window)
-        metrics_frame.pack(fill="both", expand=True)
+
+        for widget in self.tab_metrics.winfo_children():
+            widget.destroy()
+
+        lbl_title = tk.Label(self.tab_metrics, text="Clustering Metrics Summary",
+                             font=("Segoe UI", 12, "bold"), bg="#1e1e1e", fg="#00adb5")
+        lbl_title.pack(anchor="w", padx=15, pady=10)
+
+        table_frame = tk.Frame(self.tab_metrics, bg="#1e1e1e")
+        table_frame.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+
         columns = ["Dataset", "NMI", "Purity Index", "Rand Index"]
-        tree = ttk.Treeview(metrics_frame, columns=columns, show="headings")
+        tree = ttk.Treeview(table_frame, columns=columns, show="headings", style="Treeview")
         for col in columns:
             tree.heading(col, text=col)
-            tree.column(col, width=150)
+            tree.column(col, width=150, anchor="center")
+
         for key, arr in self.data.items():
             if self.is_feature_array(arr):
                 metrics = self.compute_clustering_metrics(arr, self.labels)
@@ -473,7 +605,13 @@ class NpyVisualizerApp:
                     f"{metrics['Purity Index']:.4f}",
                     f"{metrics['Rand Index']:.4f}"
                 ])
-        tree.pack(fill="both", expand=True)
+
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+
+        tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
         output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
         metrics_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_clustering_metrics.csv")
         with open(metrics_file, 'w') as f:
@@ -527,31 +665,31 @@ class NpyVisualizerApp:
         return deformity_scores, avg
 
     def display_deformity_table(self, scores, avg_deformity, feature_name, dim, method):
-        window = tk.Toplevel(self.root)
-        window.title(f"Deformity Index Report - {feature_name} ({method} {dim})")
-        window.geometry("850x680")
-        window.configure(bg="#1e1e1e")
+        # Clear previous widgets in tab_deformity
+        for widget in self.tab_deformity.winfo_children():
+            widget.destroy()
 
-        title = tk.Label(window, text="DEFORMITY INDEX REPORT", font=("Consolas", 20, "bold"), bg="#1e1e1e", fg="#ff5252")
-        title.pack(pady=20)
+        # Banner Layout
+        header_frame = tk.Frame(self.tab_deformity, bg="#1e1e1e")
+        header_frame.pack(fill="x", padx=15, pady=10)
 
-        overall = tk.Label(window, text=f"Overall Deformity Index: {avg_deformity:.4f}", font=("Consolas", 16), bg="#1e1e1e", fg="#00ff80")
-        overall.pack(pady=5)
+        lbl_title = tk.Label(header_frame, text=f"DEFORMITY INDEX REPORT - {feature_name} ({method} {dim})",
+                             font=("Segoe UI", 12, "bold"), bg="#1e1e1e", fg="#ff5252")
+        lbl_title.pack(anchor="w")
 
         quality = "Excellent" if avg_deformity < 0.25 else "Good" if avg_deformity < 0.45 else "Moderate" if avg_deformity < 0.65 else "Poor" if avg_deformity < 0.85 else "Very Poor"
         color = "#00ff80" if avg_deformity < 0.45 else "#ffff00" if avg_deformity < 0.85 else "#ff5252"
-        q_label = tk.Label(window, text=quality, font=("Consolas", 24, "bold"), bg="#1e1e1e", fg=color)
-        q_label.pack(pady=10)
+        
+        lbl_score = tk.Label(header_frame, text=f"Overall Deformity Index: {avg_deformity:.4f}  [{quality}]",
+                             font=("Segoe UI", 11, "bold"), bg="#1e1e1e", fg=color)
+        lbl_score.pack(anchor="w", pady=(5, 0))
 
-        frame = tk.Frame(window, bg="#1e1e1e")
-        frame.pack(fill="both", expand=True, padx=30, pady=20)
+        # Table container
+        table_frame = tk.Frame(self.tab_deformity, bg="#1e1e1e")
+        table_frame.pack(fill="both", expand=True, padx=15, pady=(0, 15))
 
         columns = ("Class", "Deformity Index", "Quality")
-        tree = ttk.Treeview(frame, columns=columns, show="headings", style="Treeview")
-        style = ttk.Style()
-        style.configure("Treeview", background="#2d2d2d", foreground="#00ff80", fieldbackground="#1e1e1e", font=("Consolas", 11))
-        style.configure("Treeview.Heading", background="#424242", foreground="#ff5252", font=("Consolas", 12, "bold"))
-
+        tree = ttk.Treeview(table_frame, columns=columns, show="headings", style="Treeview")
         tree.heading("Class", text="Class")
         tree.heading("Deformity Index", text="Deformity Index")
         tree.heading("Quality", text="Quality")
@@ -563,12 +701,14 @@ class NpyVisualizerApp:
             q = "Excellent" if score < 0.25 else "Good" if score < 0.45 else "Moderate" if score < 0.65 else "Poor" if score < 0.85 else "Very Poor"
             tree.insert("", "end", values=(f"Class {label}", f"{score:.4f}", q))
 
-        tree.pack(side="left", fill="both", expand=True)
-        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=scrollbar.set)
+
+        tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        self.insert_metadata("Info", "Deformity Index table opened - IDOIT approved")
+        self.insert_metadata("Info", "Deformity Index table updated")
 
     def save_deformity_report(self, scores, avg, feature_name, dim, method):
         output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
@@ -618,11 +758,15 @@ class NpyVisualizerApp:
         self.insert_metadata("Info", f"Generating {dim} t-SNE plot (perplexity={perplexity})...")
         self.root.update()
         try:
-            tsne = TSNE(n_components=n_components, perplexity=perplexity, n_iter=1000, random_state=42, n_jobs=-1)
+            try:
+                tsne = TSNE(n_components=n_components, perplexity=perplexity, max_iter=1000, random_state=42, n_jobs=-1)
+            except TypeError:
+                tsne = TSNE(n_components=n_components, perplexity=perplexity, n_iter=1000, random_state=42, n_jobs=-1)
             features_tsne = tsne.fit_transform(features)
             fig = plt.figure(figsize=(20, 8))
             if dim == "2D":
                 ax = fig.add_subplot(111)
+                ax.set_aspect('equal', adjustable='box')
                 x, y = features_tsne[:, 0], features_tsne[:, 1]
             else:
                 ax = fig.add_subplot(111, projection='3d')
@@ -651,14 +795,14 @@ class NpyVisualizerApp:
                         if dim == "2D":
                             ax.scatter(x[mask], y[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.5, s=80)
                             centroid = np.mean(features_tsne[mask], axis=0)
-                            ax.scatter([centroid[0]], [centroid[1]], c=[colors[idx]], marker='X', s=200, edgecolors='black', label=f"Centroid {label}")
+                            ax.scatter([centroid[0]], [centroid[1]], c=[colors[idx]], marker='X', s=200, edgecolors='black', label="Centroid" if idx == 0 else "")
                             class_points = features_tsne[mask]
                             for point in class_points:
                                 ax.plot([point[0], centroid[0]], [point[1], centroid[1]], c=colors[idx], alpha=0.3, linewidth=0.5)
                         else:
                             ax.scatter(x[mask], y[mask], z[mask], c=[colors[idx]], marker=".", label=f"Class {label}", alpha=0.5, s=80)
                             centroid = np.mean(features_tsne[mask], axis=0)
-                            ax.scatter([centroid[0]], [centroid[1]], [centroid[2]], c=[colors[idx]], marker='X', s=200, edgecolors='black', label=f"Centroid {label}")
+                            ax.scatter([centroid[0]], [centroid[1]], [centroid[2]], c=[colors[idx]], marker='X', s=200, edgecolors='black', label="Centroid" if idx == 0 else "")
                             class_points = features_tsne[mask]
                             for point in class_points:
                                 ax.plot([point[0], centroid[0]], [point[1], centroid[1]], [point[2], centroid[2]], c=colors[idx], alpha=0.3, linewidth=0.5)
@@ -666,15 +810,15 @@ class NpyVisualizerApp:
                         distances = cdist(features_tsne[mask], [centroid], metric=self.distance_metric.get()).flatten()
                         self.distances_per_class[label] = distances
                         mode_distance = self.compute_mode_distance(distances)
-                        table_data.append([f"Class {label}", f"{np.mean(distances):.4f}", f"{mode_distance:.4f}", f"{np.max(distances):.4f}"])
+                        table_data.append([f"{label}", f"{np.mean(distances):.4f}", f"{mode_distance:.4f}", f"{np.max(distances):.4f}"])
                 max_radii, point_counts, shifted_centroids = self.compute_max_radius(features_tsne, labels, centroids, unique_labels)
                 centroids_dict = dict(centroids)
                 deformity_scores, avg_deformity = self.compute_deformity_index(features_tsne, labels, centroids_dict, max_radii, point_counts)
                 self.display_deformity_table(deformity_scores, avg_deformity, feature_name, dim, method)
                 self.save_deformity_report(deformity_scores, avg_deformity, feature_name, dim, method)
                 self.display_radius_table(max_radii, point_counts, shifted_centroids, table_data, feature_name, dim, method)
-                # ... rest of your original plotting code (circles, heatmaps, etc.) remains unchanged ...
-                # (I kept the full original here — nothing removed)
+                
+                shifted_legend_added = False
                 for label, centroid in centroids:
                     radius = max_radii.get(label, 0.0)
                     shifted_centroid = shifted_centroids.get(label, centroid)
@@ -683,8 +827,10 @@ class NpyVisualizerApp:
                             circle = Circle(centroid, radius, color=colors[unique_labels.tolist().index(label)], 
                                             fill=False, linestyle='--', alpha=0.7)
                             ax.add_patch(circle)
+                            lbl_shifted = "Shifted Centroid" if not shifted_legend_added else ""
+                            shifted_legend_added = True
                             ax.scatter([shifted_centroid[0]], [shifted_centroid[1]], c=[colors[unique_labels.tolist().index(label)]], 
-                                       marker='*', s=200, edgecolors='black', label=f"Shifted Centroid {label}")
+                                       marker='*', s=200, edgecolors='black', label=lbl_shifted)
                         else:
                             u = np.linspace(0, 2 * np.pi, 20)
                             v = np.linspace(0, np.pi, 20)
@@ -693,19 +839,34 @@ class NpyVisualizerApp:
                             z_sphere = radius * np.outer(np.ones(np.size(u)), np.cos(v)) + centroid[2]
                             ax.plot_wireframe(x_sphere, y_sphere, z_sphere, color=colors[unique_labels.tolist().index(label)], 
                                               alpha=0.3, linestyle='--')
+                            lbl_shifted = "Shifted Centroid" if not shifted_legend_added else ""
+                            shifted_legend_added = True
                             ax.scatter([shifted_centroid[0]], [shifted_centroid[1]], [shifted_centroid[2]], 
                                        c=[colors[unique_labels.tolist().index(label)]], marker='*', s=200, edgecolors='black', 
-                                       label=f"Shifted Centroid {label}")
+                                       label=lbl_shifted)
                     shifted_centroids_list.append((label, shifted_centroid))
+
+                # Build clean non-overlapping legend
+                handles, legend_labels = ax.get_legend_handles_labels()
+                class_handles = []
+                class_labels = []
+                general_handles = []
+                general_labels = []
+                for h, l in zip(handles, legend_labels):
+                    if l in ["Centroid", "Shifted Centroid"]:
+                        general_handles.append(h)
+                        general_labels.append(l)
+                    else:
+                        class_handles.append(h)
+                        class_labels.append(l)
+
                 max_legend_classes = 20
-                if len(unique_labels) > max_legend_classes:
-                    self.insert_metadata("Info", f"Showing {max_legend_classes} classes in legend. Full class list in centroid/distance files.")
-                    handles, legend_labels = ax.get_legend_handles_labels()
-                    ax.legend(handles[:max_legend_classes], legend_labels[:max_legend_classes], title=f"Classes: {len(unique_labels)}",
-                             bbox_to_anchor=(1.1, 1), loc='upper left', borderaxespad=0., fontsize=8, ncol=2)
-                else:
-                    ax.legend(title=f"Classes: {len(unique_labels)}", bbox_to_anchor=(1.1, 1), loc='upper left',
-                             borderaxespad=0., fontsize=8, ncol=2)
+                shown_handles = class_handles[:max_legend_classes] + general_handles
+                shown_labels = class_labels[:max_legend_classes] + general_labels
+
+                ax.legend(shown_handles, shown_labels, title=f"Classes: {len(unique_labels)}",
+                          bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0., fontsize=8, ncol=2)
+
                 self.insert_metadata("Info", f"Visualizing classes: {unique_labels}")
                 max_table_classes = 10
                 if len(unique_labels) > max_table_classes:
@@ -713,10 +874,11 @@ class NpyVisualizerApp:
                     table_data = table_data[:max_table_classes]
                 if table_data:
                     table_columns = ["Class", "Mean Dist", "Mode Dist", "Max Dist"]
-                    table = ax.table(cellText=table_data, colLabels=table_columns, bbox=[1.1, 0.0, 0.7, 0.5], loc='right')
+                    table = ax.table(cellText=table_data, colLabels=table_columns, bbox=[1.05, 0.0, 0.65, 0.4], loc='right')
                     table.auto_set_font_size(False)
                     table.set_fontsize(7)
                     table.scale(1, 1.5)
+                    table.auto_set_column_width(col=list(range(len(table_columns))))
                     self.insert_metadata("Info", "In-plot table with distances displayed.")
             else:
                 if dim == "2D":
@@ -732,10 +894,15 @@ class NpyVisualizerApp:
             plt.tight_layout()
             fig.subplots_adjust(right=0.57 if dim == "2D" else 0.45, top=1, bottom=0.1)
             try:
-                canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+                # Wrap each plot and its toolbar in a separate container frame
+                plot_container = tk.Frame(self.plot_frame, bg="#1e1e1e")
+                plot_container.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+
+                canvas = FigureCanvasTkAgg(fig, master=plot_container)
                 canvas.draw()
-                canvas.get_tk_widget().pack(side="left", padx=10, pady=10)
-                toolbar = NavigationToolbar2Tk(canvas, self.plot_frame)
+                canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+                
+                toolbar = NavigationToolbar2Tk(canvas, plot_container)
                 toolbar.update()
                 output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
                 output_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_tsne_{dim.lower()}_{method.lower()}.png")
@@ -765,28 +932,51 @@ class NpyVisualizerApp:
                     centroid_array = np.array([c[1] for c in centroids])
                     centroid_labels = [c[0] for c in centroids]
                     dist_matrix = squareform(pdist(centroid_array, metric=self.distance_metric.get()))
-                    heatmap_window = tk.Toplevel(self.root)
-                    heatmap_window.title(f"Inter-Centroid Distances: {feature_name} ({method} {dim})")
-                    heatmap_window.geometry("800x600")
-                    heatmap_frame = tk.Frame(heatmap_window)
-                    heatmap_frame.pack(fill="both", expand=True)
-                    canvas = tk.Canvas(heatmap_frame)
-                    canvas.pack(side=tk.LEFT, fill="both", expand=True)
-                    scrollbar = tk.Scrollbar(heatmap_frame, orient=tk.VERTICAL, command=canvas.yview)
-                    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-                    canvas.config(yscrollcommand=scrollbar.set)
-                    inner_frame = tk.Frame(canvas)
-                    canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+                    # Clear tab_heatmap
+                    for widget in self.tab_heatmap.winfo_children():
+                        widget.destroy()
+
+                    lbl_heatmap_title = tk.Label(self.tab_heatmap, text=f"Inter-Centroid Distances: {feature_name} ({method} {dim})",
+                                                 font=("Segoe UI", 12, "bold"), bg="#1e1e1e", fg="#00adb5")
+                    lbl_heatmap_title.pack(anchor="w", padx=15, pady=10)
+
+                    # Sub-frame for canvas and scrollbars
+                    heatmap_container = tk.Frame(self.tab_heatmap, bg="#1e1e1e")
+                    heatmap_container.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+
+                    canvas_scroll = tk.Canvas(heatmap_container, bg="#1e1e1e", bd=0, highlightthickness=0)
+                    canvas_scroll.pack(side=tk.LEFT, fill="both", expand=True)
+                    
+                    scrollbar_y = tk.Scrollbar(heatmap_container, orient=tk.VERTICAL, command=canvas_scroll.yview)
+                    scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+                    canvas_scroll.config(yscrollcommand=scrollbar_y.set)
+                    
+                    scrollbar_x = tk.Scrollbar(self.tab_heatmap, orient=tk.HORIZONTAL, command=canvas_scroll.xview)
+                    scrollbar_x.pack(side=tk.BOTTOM, fill=tk.X, padx=15)
+                    canvas_scroll.config(xscrollcommand=scrollbar_x.set)
+
+                    inner_frame = tk.Frame(canvas_scroll, bg="#1e1e1e")
+                    canvas_scroll.create_window((0, 0), window=inner_frame, anchor="nw")
+
                     heatmap_fig, heatmap_ax = plt.subplots(figsize=(max(6, len(centroid_labels)), max(6, len(centroid_labels))))
+                    heatmap_fig.patch.set_facecolor('#1e1e1e')
+                    heatmap_ax.set_facecolor('#1e1e1e')
+                    heatmap_ax.tick_params(colors='#ffffff')
+                    heatmap_ax.xaxis.label.set_color('#ffffff')
+                    heatmap_ax.yaxis.label.set_color('#ffffff')
+                    heatmap_ax.title.set_color('#00adb5')
+
                     sns.heatmap(dist_matrix, annot=True, fmt='.2f', xticklabels=centroid_labels, yticklabels=centroid_labels,
                                 cmap=plt.colormaps['viridis'], cbar_kws={'label': f'{self.distance_metric.get().capitalize()} Distance'}, ax=heatmap_ax)
                     heatmap_ax.set_title(f"Inter-Centroid Distances: {feature_name} ({method} {dim})")
                     plt.tight_layout()
+                    
                     plot_canvas = FigureCanvasTkAgg(heatmap_fig, master=inner_frame)
                     plot_canvas.draw()
                     plot_canvas.get_tk_widget().pack(fill="both", expand=True)
+                    
                     inner_frame.update_idletasks()
-                    canvas.config(scrollregion=canvas.bbox("all"))
+                    canvas_scroll.config(scrollregion=canvas_scroll.bbox("all"))
                     heatmap_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_inter_centroid_distances_{method.lower()}_{dim.lower()}.png")
                     heatmap_fig.savefig(heatmap_file, dpi=300, bbox_inches='tight')
                     self.insert_metadata("Info", f"Inter-centroid distance heatmap saved to {heatmap_file}")
@@ -848,10 +1038,15 @@ class NpyVisualizerApp:
                 return
             ax.grid(True, alpha=0.3)
             try:
-                canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+                # Wrap fallback plot and toolbar in container frame
+                plot_container = tk.Frame(self.plot_frame, bg="#1e1e1e")
+                plot_container.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+
+                canvas = FigureCanvasTkAgg(fig, master=plot_container)
                 canvas.draw()
-                canvas.get_tk_widget().pack(side="left", padx=10, pady=10)
-                toolbar = NavigationToolbar2Tk(canvas, self.plot_frame)
+                canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+                
+                toolbar = NavigationToolbar2Tk(canvas, plot_container)
                 toolbar.update()
                 output_dir = os.path.dirname(self.file_path) if os.path.isfile(self.file_path) else self.file_path
                 output_file = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(self.file_path))[0]}_fallback_{arr_name}.png")
